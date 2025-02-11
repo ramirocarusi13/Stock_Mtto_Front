@@ -45,6 +45,31 @@ const PrestamosList = () => {
             setLoading(false);
         }
     };
+    const handleDevolver = async (id) => {
+        try {
+            const response = await fetch(`${VITE_APIURL}prestamo/${id}/devolver`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+    
+            const responseData = await response.json();
+            console.log("📢 Respuesta de la API al devolver:", responseData);
+    
+            if (!response.ok) {
+                throw new Error(responseData.error || 'Error al devolver el producto');
+            }
+    
+            message.success('Producto devuelto con éxito');
+            fetchPrestamos();
+        } catch (error) {
+            console.error("Error al devolver el producto:", error);
+            message.error('Error al devolver el producto: ' + error.message);
+        }
+    };
+    
 
     const fetchPrestamos = async () => {
         setLoading(true);
@@ -172,6 +197,30 @@ const PrestamosList = () => {
                     { title: 'Receptor', dataIndex: 'receptor_prestamo', key: 'receptor_prestamo' },
                     { title: 'Usuario', dataIndex: 'usuario', key: 'usuario', render: (_,r) => r?.user?.name || 'N/A' },
                     { title: 'Fecha de Préstamo', dataIndex: 'fecha_prestado', key: 'fecha_prestado' },
+                    {
+                        title: 'Fecha de Devolución',
+                        dataIndex: 'fecha_devolucion',
+                        key: 'fecha_devolucion',
+                        render: (text) => text ? new Date(text).toLocaleDateString() : 'No devuelto'
+                    },
+                    
+                    {
+                        title: 'Acciones',
+                        key: 'acciones',
+                        render: (_, record) => (
+                            !record.devuelto ? (
+                                <Button 
+                                    className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition"
+                                    onClick={() => handleDevolver(record.id)}
+                                >
+                                    Devolver
+                                </Button>
+                            ) : (
+                                <span className="text-green-600 font-semibold">Devuelto</span>
+                            )
+                        ),
+                    },
+                    
                 ]}
                 dataSource={prestamos}
                 rowKey='id'
