@@ -3,8 +3,9 @@ import { Modal, Form, Input, InputNumber, Select, message } from 'antd';
 
 const { Option } = Select;
 
-function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, descripcionOptions = [], proveedorOptions = [], VITE_APIURL }) {
+function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, descripcionOptions = [], proveedorOptions = [],}) {
     const [form] = Form.useForm();
+    const VITE_APIURL = import.meta.env.VITE_APIURL;
 
     useEffect(() => {
         if (visible && initialValues) {

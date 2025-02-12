@@ -32,32 +32,53 @@ const ProductList = () => {
     const userRole = userData.rol || 'guest'; // Si no hay rol, lo establecemos como "guest"
 
     useEffect(() => {
-        const fetchProductos = async () => {
-            setLoading(true);
-            try {
-                const response = await fetch(`${VITE_APIURL}inventario`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-                const data = await response.json();
-                if (!response.ok) {
-                    throw new Error(data.message || 'Error al obtener los productos');
-                }
-                setProductos(data.data.filter(product => product.estado === 'aprobado'));
-                setProductosPendientes(data.data.filter(product => product.estado === 'pendiente'));
-            } catch (error) {
-                console.error('Error al obtener los productos:', error);
-                alert('Error al obtener los productos');
-            } finally {
-                setLoading(false);
-            }
-        };
-
         fetchProductos();
     }, []);
+
+    // Función para obtener productos con stock real
+    const fetchProductos = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${VITE_APIURL}inventario`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Error al obtener los productos');
+            }
+
+            // Obtener stock real para cada producto
+            const productosConStock = await Promise.all(
+                data.data.map(async (product) => {
+                    const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    const stockData = await stockResponse.json();
+                    return {
+                        ...product,
+                        stock_real: stockData.stock_real, // Agregamos el stock real al producto
+                    };
+                })
+            );
+
+            setProductos(productosConStock);
+        } catch (error) {
+            console.error('Error al obtener los productos:', error);
+            message.error('Error al obtener los productos');
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleApproveClick = (product) => {
         setCurrentProduct(product);
@@ -68,12 +89,12 @@ const ProductList = () => {
         setCurrentProduct(product);
         setModalEditarVisible(true);
     };
-    const handleStatusChange = (productId, newStatus) => {
-        setProductosPendientes(prev => prev.filter(p => p.id !== productId));
-
-        if (newStatus === 'aprobado') {
-            setProductos(prev => [...prev, { ...currentProduct, estado: 'aprobado' }]);
-        }
+    const handleStatusChange = async (codigo, newStatus) => {
+        setProductos((prev) =>
+            prev.map((p) =>
+                p.codigo === codigo ? { ...p, estado: newStatus } : p
+            )
+        );
     };
     const handleSearch = () => {
         setFilteredProductos(productos.filter(item =>
@@ -131,9 +152,6 @@ const ProductList = () => {
             maxWidth: '1400px',
             margin: 'auto',
         }}>
-            
-
-            {/* Panel derecho con la lista de productos */}
             <div style={{
                 flex: 1,
                 paddingLeft: '20px',
@@ -141,17 +159,14 @@ const ProductList = () => {
                 <Card>
                     <Title level={2} style={{ textAlign: 'center' }}>Productos</Title>
 
-                    {/* Solo el gerente puede ver la lista de productos pendientes */}
                     <Button
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => setIsModalVisible(true)}
-                        style={{ width: '20%', marginTop: '10px' , marginBottom: '20px' }}
+                        style={{ width: '20%', marginTop: '10px', marginBottom: '20px' }}
                     >
                         Agregar Producto
                     </Button>
-
-                    
 
                     <Table
                         columns={[
@@ -169,12 +184,13 @@ const ProductList = () => {
                                 title: 'Proveedor',
                                 dataIndex: 'proveedor',
                                 key: 'proveedor',
-                                render: (_, record) => record?.proveedor?.nombre
+                                render: (_, record) => record?.proveedor?.nombre || 'N/A'
                             },
                             {
-                                title: 'En Stock',
-                                dataIndex: 'en_stock',
-                                key: 'en_stock',
+                                title: 'Stock Real',
+                                dataIndex: 'stock_real',
+                                key: 'stock_real',
+                                render: (stock) => stock ?? 0, // Si no hay stock, mostrar 0
                             },
                             {
                                 title: 'Stock Mínimo',
@@ -190,22 +206,34 @@ const ProductList = () => {
                                 title: 'Acciones',
                                 key: 'acciones',
                                 render: (_, record) => (
-                                    <Button
-                                        icon={<EditOutlined />}
-                                        onClick={() => handleEditClick(record)}
-                                        type="primary"
-                                    >
-                                        Editar
-                                    </Button>
+                                    <>
+                                        <Button
+                                            icon={<EditOutlined />}
+                                            onClick={() => handleEditClick(record)}
+                                            type="primary"
+                                            style={{ marginRight: '8px' }}
+                                        >
+                                            Editar
+                                        </Button>
+                                        {record.estado === 'pendiente' && (
+                                            <Button
+                                                icon={<CheckOutlined />}
+                                                onClick={() => handleApproveClick(record)}
+                                                type="primary"
+                                                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                                            >
+                                                Aprobar
+                                            </Button>
+                                        )}
+                                    </>
                                 ),
                             },
                         ]}
-                        dataSource={productos.filter(product => product.estado === 'aprobado')} // 🔹 FILTRO APLICADO
-                        rowKey="id"
+                        dataSource={productos}
+                        rowKey="codigo"
                         bordered
                         loading={loading}
                     />
-
                 </Card>
             </div>
 
@@ -213,32 +241,26 @@ const ProductList = () => {
                 visible={isModalVisible}
                 onClose={() => setIsModalVisible(false)}
                 onProductAdded={(newProduct) => {
-                    setProductos((prev) => [...prev, newProduct]);
+                    setProductos((prev) => [...prev, { ...newProduct, stock_real: 0 }]);
                 }}
                 VITE_APIURL={VITE_APIURL}
             />
-
 
             <ModalAprobarProducto
                 visible={modalAprobarVisible}
                 onClose={() => setModalAprobarVisible(false)}
                 product={currentProduct}
-                onStatusChange={handleStatusChange} // ✅ Se pasa correctamente
+                onStatusChange={handleStatusChange}
                 VITE_APIURL={VITE_APIURL}
             />
-
-
 
             <ModalModificarProducto
                 visible={modalEditarVisible}
                 onClose={() => setModalEditarVisible(false)}
-                onSubmit={handleUpdateProduct}
-                descripcionOptions={productos}
-                proveedorOptions={productos.map(prod => prod.proveedor)}
+                onSubmit={fetchProductos} // Recargar lista después de editar
                 initialValues={currentProduct}
-                VITE_APIURL={VITE_APIURL} // ✅ Se pasa correctamente la URL
+                VITE_APIURL={VITE_APIURL}
             />
-
         </div>
     );
 };

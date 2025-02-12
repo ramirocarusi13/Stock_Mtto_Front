@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Modal, Button, message } from 'antd';
 
-const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_APIURL }) => {
+const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => {
     const [selectedStatus, setSelectedStatus] = useState(null);
     const [loading, setLoading] = useState(false);
+    const VITE_APIURL = import.meta.env.VITE_APIURL;
 
     const handleConfirm = async () => {
         if (!selectedStatus) {
@@ -13,10 +14,16 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
 
         setLoading(true);
         try {
-            const apiUrl = `${VITE_APIURL.replace(/\/$/, '')}/inventario/${product.id}/estado`;
+            // Verificamos que el producto tenga un código válido
+            if (!product || !product.codigo) {
+                throw new Error("Producto inválido");
+            }
+
+            // URL corregida para aprobar/rechazar el producto
+            const apiUrl = `${VITE_APIURL}inventario/aprobar/${product.codigo}`;
 
             const response = await fetch(apiUrl, {
-                method: 'POST',
+                method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
@@ -31,9 +38,12 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
             }
 
             message.success(`Producto ${selectedStatus} con éxito`);
+
+            // Notificamos al padre que el estado cambió
             if (onStatusChange) {
-                onStatusChange(product.id, selectedStatus);
+                onStatusChange(product.codigo, selectedStatus);
             }
+
             onClose();
         } catch (error) {
             message.error(error.message || 'Error al actualizar el estado del producto');
@@ -48,7 +58,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
             open={visible}
             onCancel={onClose}
             footer={[
-                <Button key="cancel" onClick={onClose}>
+                <Button key="cancel" onClick={onClose} disabled={loading}>
                     Cancelar
                 </Button>,
                 <Button
@@ -66,6 +76,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
                 </Button>,
             ]}
         >
+            <p>Selecciona el estado para el producto:</p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
                 <Button
                     type={selectedStatus === 'aprobado' ? "primary" : "default"}
