@@ -1,22 +1,59 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Input, InputNumber, message, Modal, Form, Select } from 'antd';
+import { Table, Button, Tag, message, Input, DatePicker, Space, Modal, Form, Select, InputNumber } from 'antd';
+import { UserOutlined, CalendarOutlined, BarcodeOutlined, InboxOutlined, PlusOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 
+const { RangePicker } = DatePicker;
 const { Option } = Select;
 
 const SalidasList = () => {
-    const [productosDisponibles, setProductosDisponibles] = useState([]);
     const [salidas, setSalidas] = useState([]);
-    const [modalSalidaVisible, setModalSalidaVisible] = useState(false);
+    const [filteredSalidas, setFilteredSalidas] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [searchText, setSearchText] = useState('');
+    const [selectedDates, setSelectedDates] = useState(null);
+    const [modalSalidaVisible, setModalSalidaVisible] = useState(false);
+    const [productosDisponibles, setProductosDisponibles] = useState([]);
+    const [filteredProductos, setFilteredProductos] = useState([]);
     const [formSalida] = Form.useForm();
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
     useEffect(() => {
-        fetchProductos();
         fetchSalidas();
+        fetchProductos();
     }, []);
 
+    // Obtener solo los movimientos con motivo "egreso"
+    const fetchSalidas = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch(`${VITE_APIURL}movimientos?motivo=egreso`, { 
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+
+            const data = await response.json();
+            if (!data || !data.movimientos) {
+                throw new Error('Estructura de respuesta incorrecta');
+            }
+
+            // Filtrar solo los movimientos con motivo "egreso"
+            const salidasFiltradas = data.movimientos.filter(mov => mov.motivo === 'egreso');
+
+            setSalidas(salidasFiltradas);
+            setFilteredSalidas(salidasFiltradas); // Inicializar con todas las salidas
+        } catch (error) {
+            console.error("Error al obtener las salidas:", error);
+            message.error('Error al obtener las salidas');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Obtener productos aprobados y calcular el stock desde movimientos
     const fetchProductos = async () => {
         setLoading(true);
         try {
@@ -32,7 +69,30 @@ const SalidasList = () => {
                 throw new Error('Estructura de respuesta incorrecta');
             }
 
-            setProductosDisponibles(data.data.filter(producto => producto.en_stock > 0));
+            // Filtrar productos aprobados
+            const productosAprobados = data.data.filter(producto => producto.estado === 'aprobado');
+
+            // Obtener stock real desde movimientos
+            const productosConStock = await Promise.all(
+                productosAprobados.map(async (producto) => {
+                    const stockResponse = await fetch(`${VITE_APIURL}movimientos/${producto.codigo}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    const stockData = await stockResponse.json();
+                    return {
+                        ...producto,
+                        stock_real: stockData.cantidad_total || 0, // Stock basado en movimientos
+                    };
+                })
+            );
+
+            setProductosDisponibles(productosConStock);
+            setFilteredProductos(productosConStock);
         } catch (error) {
             console.error("Error al obtener los productos:", error);
             message.error('Error al obtener los productos');
@@ -41,28 +101,40 @@ const SalidasList = () => {
         }
     };
 
-    const fetchSalidas = async () => {
-        setLoading(true);
-        try {
-            const response = await fetch(`${VITE_APIURL}salidas`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
+    // Filtro por nombre del producto
+    const handleSearchChange = (e) => {
+        const value = e.target.value.toLowerCase();
+        setSearchText(value);
+        applyFilters(value, selectedDates);
+    };
 
-            const data = await response.json();
-            if (!data || !data.data) {
-                throw new Error('Estructura de respuesta incorrecta');
-            }
+    // Filtro por rango de fechas
+    const handleDateChange = (dates) => {
+        setSelectedDates(dates);
+        applyFilters(searchText, dates);
+    };
 
-            setSalidas(data.data);
-        } catch (error) {
-            console.error("Error al obtener las salidas:", error);
-            message.error('Error al obtener las salidas');
-        } finally {
-            setLoading(false);
+    // Aplicar filtros combinados
+    const applyFilters = (searchValue, dateRange) => {
+        let filtered = salidas;
+
+        // Filtrar por nombre de producto
+        if (searchValue) {
+            filtered = filtered.filter(salida =>
+                salida.producto?.descripcion.toLowerCase().includes(searchValue)
+            );
         }
+
+        // Filtrar por rango de fechas
+        if (dateRange && dateRange.length === 2) {
+            const [start, end] = dateRange;
+            filtered = filtered.filter(salida => {
+                const salidaFecha = dayjs(salida.created_at);
+                return salidaFecha.isAfter(start) && salidaFecha.isBefore(end);
+            });
+        }
+
+        setFilteredSalidas(filtered);
     };
 
     const abrirModalSalida = () => {
@@ -80,23 +152,25 @@ const SalidasList = () => {
                 return;
             }
 
-            if (values.cantidadSalida > producto.en_stock) {
+            if (values.cantidadSalida > producto.stock_real) {
                 message.error('No se puede registrar más cantidad de la disponible');
                 return;
             }
-
-            const response = await fetch(`${VITE_APIURL}salidas`, {
+            const cantidad = Math.abs(values.cantidadSalida)*-1
+            const response = await fetch(`${VITE_APIURL}movimientos`, {
+                
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    inventario_id: producto.id,
-                    cantidad: values.cantidadSalida,
-                    motivo: values.motivoSalida,
+                    codigo_producto: producto.codigo,
+                    cantidad: cantidad, // Se asegura que la cantidad sea negativa
+                    motivo: 'egreso',
                 }),
             });
+            
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -113,61 +187,107 @@ const SalidasList = () => {
         }
     };
 
-    const columns = [
-        {
-            title: 'Código',
-            dataIndex: 'inventario',
-            key: 'codigo',
-            render: (inventario) => inventario ? inventario.codigo : 'N/A'
-        },
-        {
-            title: 'Descripción',
-            dataIndex: 'inventario',
-            key: 'descripcion',
-            render: (inventario) => inventario ? inventario.descripcion : 'N/A'
-        },
-        {
-            title: 'Cantidad',
-            dataIndex: 'cantidad',
-            key: 'cantidad',
-        },
-        {
-            title: 'Motivo',
-            dataIndex: 'motivo',
-            key: 'motivo',
-        },
-        {
-            title: 'Usuario',
-            dataIndex: 'usuario',
-            key: 'usuario',
-            render: (usuario) => usuario ? usuario.name : 'N/A'
-        },
-        {
-            title: 'Fecha',
-            dataIndex: 'created_at',
-            key: 'fecha',
-            render: (fecha) => new Date(fecha).toLocaleDateString(),
-        }
-    ];
+    // Manejo del filtro en tiempo real
+    const handleSearchProductoChange = (value) => {
+        setSearchText(value.toLowerCase());
+
+        const filtered = productosDisponibles.filter(producto =>
+            producto.codigo.toLowerCase().includes(value.toLowerCase())
+        );
+
+        setFilteredProductos(filtered);
+    };
 
     return (
         <div className="p-6 bg-gray-100 min-h-screen">
-            <h1 className="text-3xl font-bold mb-4 text-center text-gray-800">Registro de Salidas</h1>
+            <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">📦 Registro de Salidas</h1>
 
-            <Button
-                className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded transition mb-4"
-                onClick={abrirModalSalida}
-            >
-                Registrar Salida
-            </Button>
+            {/* Filtros y botón alineados a la derecha */}
+            <div className="flex justify-between items-center mb-4">
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={abrirModalSalida}
+                    className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded transition"
+                >
+                    Registrar Salida
+                </Button>
+
+                <Space>
+                    <Input
+                        placeholder="Buscar por nombre de producto..."
+                        onChange={handleSearchChange}
+                        value={searchText}
+                        className="w-60"
+                    />
+
+                    <RangePicker
+                        onChange={handleDateChange}
+                        className="w-72"
+                        format="YYYY-MM-DD"
+                    />
+                </Space>
+            </div>
 
             <Table
-                columns={columns}
-                dataSource={salidas}
-                rowKey='id'
+                columns={[
+                    {
+                        title: 'Usuario',
+                        dataIndex: ['usuario', 'name'],
+                        key: 'usuario',
+                        render: (usuario) => (
+                            <Tag icon={<UserOutlined />} color="blue">
+                                {usuario || 'Desconocido'}
+                            </Tag>
+                        ),
+                    },
+                    {
+                        title: 'Código de Producto',
+                        dataIndex: 'codigo_producto',
+                        key: 'codigo_producto',
+                        render: (codigo) => (
+                            <Tag color="volcano">
+                                {codigo}
+                            </Tag>
+                        ),
+                    },
+                    {
+                        title: 'Descripción',
+                        dataIndex: ['producto', 'descripcion'],
+                        key: 'descripcion',
+                        render: (descripcion) => (
+                            <Tag color="purple">
+                                {descripcion || 'Sin descripción'}
+                            </Tag>
+                        ),
+                    },
+                    {
+                        title: 'Cantidad',
+                        dataIndex: 'cantidad',
+                        key: 'cantidad',
+                        render: (cantidad) => (
+                            <Tag color="red">
+                                {cantidad}
+                            </Tag>
+                        ),
+                    },
+                    {
+                        title: 'Fecha',
+                        dataIndex: 'created_at',
+                        key: 'fecha',
+                        render: (fecha) => (
+                            <Tag icon={<CalendarOutlined />} color="green">
+                                {new Date(fecha).toLocaleDateString()}
+                            </Tag>
+                        ),
+                    }
+                ]}
+                dataSource={filteredSalidas}
+                rowKey="id"
                 loading={loading}
                 bordered
                 className="shadow-lg bg-white rounded-lg"
+                pagination={{ pageSize: 8 }}
             />
 
             <Modal
@@ -185,10 +305,16 @@ const SalidasList = () => {
                         name="productoId"
                         rules={[{ required: true, message: 'Seleccione un producto' }]}
                     >
-                        <Select placeholder="Seleccione un producto">
-                            {productosDisponibles.map((producto) => (
+                        <Select
+                            showSearch
+                            placeholder="Buscar producto por código..."
+                            optionFilterProp="children"
+                            filterOption={false}
+                            onSearch={handleSearchProductoChange}
+                        >
+                            {filteredProductos.map((producto) => (
                                 <Option key={producto.id} value={producto.id}>
-                                    {producto.descripcion} - Stock: {producto.en_stock}
+                                    {producto.codigo} - {producto.descripcion} (Stock: {producto.stock_real})
                                 </Option>
                             ))}
                         </Select>
@@ -205,9 +331,9 @@ const SalidasList = () => {
                     <Form.Item
                         label="Motivo de la Salida"
                         name="motivoSalida"
-                        rules={[{ required: true, message: 'Ingrese el motivo de la salida' }]}
+                        initialValue="egreso"
                     >
-                        <Input className="border border-gray-300 rounded-md p-2" />
+                        <Input disabled className="border border-gray-300 rounded-md p-2" />
                     </Form.Item>
                 </Form>
             </Modal>

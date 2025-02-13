@@ -27,11 +27,13 @@ const PendientesList = () => {
                     },
                 });
 
+
                 if (!movimientosResponse.ok) {
                     throw new Error('Error al obtener los movimientos pendientes');
                 }
 
                 const movimientosData = await movimientosResponse.json();
+
 
                 // Obtener información del producto desde inventario para cada movimiento
                 const productosConDatos = await Promise.all(
@@ -51,7 +53,7 @@ const PendientesList = () => {
 
                             const inventarioData = await inventarioResponse.json();
                             const productoEnInventario = inventarioData.producto;
-                            
+
                             // Definir si el producto ya existe en inventarios y si está aprobado
                             const esExistente = productoEnInventario && productoEnInventario.estado === 'aprobado';
 
@@ -59,7 +61,8 @@ const PendientesList = () => {
                                 ...productoEnInventario,
                                 cantidad_movimiento: movimiento.cantidad, // Cantidad del movimiento
                                 tipo_movimiento: movimiento.motivo, // Tipo de movimiento
-                                existente: esExistente, // Solo si el estado es aprobado
+                                existente: esExistente,
+                                usuario: movimiento.usuario // Solo si el estado es aprobado
                             };
                         } catch (error) {
                             console.warn(`Producto ${movimiento.codigo_producto} no está en inventario, marcándolo como nuevo`);
@@ -68,7 +71,8 @@ const PendientesList = () => {
                                 descripcion: "Nuevo Producto",
                                 cantidad_movimiento: movimiento.cantidad,
                                 tipo_movimiento: movimiento.motivo,
-                                existente: false, // Producto no encontrado en inventario
+                                existente: false,
+                                usuario: movimiento.usuario// Producto no encontrado en inventario
                             };
                         }
                     })
@@ -100,7 +104,7 @@ const PendientesList = () => {
             <MyMenu />
 
             <div style={{ flex: 1, padding: '20px' }}>
-                <Title level={2} style={{ textAlign: 'center' }}>Movimientos Pendientes</Title>
+                <Title level={2} style={{ textAlign: 'center' }}>Pendientes</Title>
                 <Table
                     columns={[
                         {
@@ -125,7 +129,7 @@ const PendientesList = () => {
                             key: 'tipo_movimiento',
                             render: (tipo) => (
                                 <Tag color={tipo === 'ingreso' ? 'green' : tipo === 'egreso' ? 'red' : 'blue'}>
-                                    {tipo.toUpperCase()}
+                                    {tipo}
                                 </Tag>
                             ),
                         },
@@ -147,6 +151,12 @@ const PendientesList = () => {
                             ),
                         },
                         {
+                            title: 'Usuario creador',
+                            dataIndex: 'usuario_nombre',
+                            key: 'usuario_nombre',
+                            render: (_, r) => <Tag color="purple">{r.usuario?.name}</Tag>,
+                        },
+                        {
                             title: 'Acciones',
                             key: 'acciones',
                             render: (_, record) => (
@@ -161,10 +171,11 @@ const PendientesList = () => {
                         },
                     ]}
                     dataSource={productosPendientes}
-                    rowKey="codigo"
+                    rowKey={(record) => `${record.codigo}-${record.tipo_movimiento}-${record.cantidad_movimiento}-${Math.random()}`} // Clave única
                     bordered
                     loading={loading}
                 />
+
             </div>
 
             <ModalAprobarProducto

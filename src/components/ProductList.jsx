@@ -4,7 +4,7 @@ import { EditOutlined, CheckOutlined, PlusOutlined, SearchOutlined } from '@ant-
 import AgregarProductoModal from './AgregarProducto';
 import ModalAprobarProducto from './ModalAprobarProducto';
 import ModalModificarProducto from './ModalModificarProducto';
-import EditarcantidadModal from './EditarcantidadModal'; // Importamos el modal de edición de cantidad
+import EditarcantidadModal from './EditarcantidadModal';
 
 const { Title } = Typography;
 
@@ -15,9 +15,9 @@ const ProductList = () => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [modalAprobarVisible, setModalAprobarVisible] = useState(false);
     const [modalEditarVisible, setModalEditarVisible] = useState(false);
-    const [isModalCantidadVisible, setIsModalCantidadVisible] = useState(false); // Estado para el modal de cantidad
+    const [isModalCantidadVisible, setIsModalCantidadVisible] = useState(false);
     const [currentProduct, setCurrentProduct] = useState(null);
-    const [movimientoSeleccionado, setMovimientoSeleccionado] = useState(null); // Movimiento seleccionado
+    const [movimientoSeleccionado, setMovimientoSeleccionado] = useState(null);
     const [searchText, setSearchText] = useState('');
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
@@ -26,7 +26,6 @@ const ProductList = () => {
         fetchProductos();
     }, []);
 
-    // Función para obtener productos aprobados
     const fetchProductos = async () => {
         setLoading(true);
         try {
@@ -71,7 +70,6 @@ const ProductList = () => {
         }
     };
 
-    // Manejo de filtro en tiempo real
     const handleSearchChange = (e) => {
         const value = e.target.value.toLowerCase();
         setSearchText(value);
@@ -85,13 +83,11 @@ const ProductList = () => {
         setFilteredProductos(filtered);
     };
 
-    // Manejo del modal de edición de cantidad
     const handleEditCantidad = (producto) => {
         setMovimientoSeleccionado(producto);
         setIsModalCantidadVisible(true);
     };
 
-    // Función para actualizar la cantidad después de editar
     const handleCantidadUpdated = (codigo, nuevaCantidad) => {
         setProductos((prevProductos) =>
             prevProductos.map((prod) =>
@@ -106,39 +102,29 @@ const ProductList = () => {
     };
 
     return (
-        <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            padding: '20px',
-            maxWidth: '1400px',
-            margin: 'auto',
-        }}>
-            <div style={{ flex: 1, paddingLeft: '20px' }}>
-                <Card>
-                    <Title level={2} style={{ textAlign: 'center' }}>Productos</Title>
+        <div className="min-h-screen p-6">
+            <div className="max-w-7xl mx-auto">
+                <Card className="shadow-lg rounded-lg">
+                    <Title level={2} className="text-center text-blue-600 mb-6">
+                        Productos
+                    </Title>
 
-                    <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '20px',
-                    }}>
+                    <div className="flex justify-between items-center mb-6">
                         <Button
                             type="primary"
                             icon={<PlusOutlined />}
                             onClick={() => setIsModalVisible(true)}
-                            style={{ width: '20%' }}
+                            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300"
                         >
                             Agregar Producto
                         </Button>
 
                         <Input
                             placeholder="Buscar por código, nombre o proveedor..."
-                            prefix={<SearchOutlined />}
+                            prefix={<SearchOutlined className="text-gray-400" />}
                             value={searchText}
                             onChange={handleSearchChange}
-                            style={{ width: '40%' }}
+                            className="w-96 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                         />
                     </div>
 
@@ -148,6 +134,7 @@ const ProductList = () => {
                                 title: 'Código',
                                 dataIndex: 'codigo',
                                 key: 'codigo',
+                                className: 'font-semibold',
                             },
                             {
                                 title: 'Producto',
@@ -158,28 +145,30 @@ const ProductList = () => {
                                 title: 'Proveedor',
                                 dataIndex: 'proveedor',
                                 key: 'proveedor',
-                                render: (_, record) => record?.proveedor?.nombre || 'N/A'
+                                render: (_, record) => record?.proveedor?.nombre || 'N/A',
                             },
                             {
                                 title: 'Stock Real',
                                 dataIndex: 'stock_real',
                                 key: 'stock_real',
-                                render: (stock) => stock ?? 0,
+                                render: (stock) => (
+                                    <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
+                                        {stock ?? 0}
+                                    </span>
+                                ),
                             },
                             {
                                 title: 'Acciones',
                                 key: 'acciones',
                                 render: (_, record) => (
-                                    <>
-                                        <Button
-                                            icon={<EditOutlined />}
-                                            onClick={() => handleEditCantidad(record)}
-                                            type="primary"
-                                            style={{ marginRight: '8px' }}
-                                        >
-                                            Editar Cantidad
-                                        </Button>
-                                    </>
+                                    <Button
+                                        icon={<EditOutlined />}
+                                        onClick={() => handleEditCantidad(record)}
+                                        type="primary"
+                                        className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-1 px-4 rounded-lg transition duration-300"
+                                    >
+                                        Editar Cantidad
+                                    </Button>
                                 ),
                             },
                         ]}
@@ -187,9 +176,12 @@ const ProductList = () => {
                         rowKey="codigo"
                         bordered
                         loading={loading}
+                        className="rounded-lg shadow-sm"
+                        rowClassName="hover:bg-gray-50 transition duration-200"
                     />
                 </Card>
             </div>
+
             <AgregarProductoModal
                 visible={isModalVisible}
                 onClose={() => setIsModalVisible(false)}
@@ -201,7 +193,7 @@ const ProductList = () => {
                 }}
                 VITE_APIURL={VITE_APIURL}
             />
-    
+
             <ModalAprobarProducto
                 visible={modalAprobarVisible}
                 onClose={() => setModalAprobarVisible(false)}
