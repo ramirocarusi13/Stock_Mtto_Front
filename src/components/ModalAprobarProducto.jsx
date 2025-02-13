@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { Modal, Button, message } from 'antd';
 
-const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => {
+const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_APIURL }) => {
     const [selectedStatus, setSelectedStatus] = useState(null);
     const [loading, setLoading] = useState(false);
-    const VITE_APIURL = import.meta.env.VITE_APIURL;
 
     const handleConfirm = async () => {
         if (!selectedStatus) {
@@ -14,13 +13,38 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
 
         setLoading(true);
         try {
-            // Verificamos que el producto tenga un código válido
-            if (!product || !product.codigo) {
-                throw new Error("Producto inválido");
+            if (!product || (!product.codigo && !product.codigo_producto)) {
+                throw new Error("Código de producto no encontrado");
             }
 
-            // URL corregida para aprobar/rechazar el producto
-            const apiUrl = `${VITE_APIURL}inventario/aprobar/${product.codigo}`;
+            // Asegurar que usamos `codigo_producto` correctamente
+            const codigoProducto = product.codigo_producto || product.codigo;
+            console.log("Actualizando estado para código de producto:", codigoProducto);
+
+            let apiUrl = "";
+            let successMessage = "";
+
+            if (selectedStatus === 'aprobado') {
+                // Si el producto ya está aprobado en inventario, aprobamos solo el movimiento
+                if (product.estado === 'aprobado') {
+                    apiUrl = `${VITE_APIURL}movimientos/aprobar/${codigoProducto}`;
+                    successMessage = "Movimiento aprobado con éxito";
+                } else {
+                    // Si el producto aún no está aprobado en inventario, aprobamos el inventario primero
+                    apiUrl = `${VITE_APIURL}inventario/aprobar/${codigoProducto}`;
+                    successMessage = "Producto y primer movimiento aprobados con éxito";
+                }
+            } else if (selectedStatus === 'rechazado') {
+                // Si el producto ya está aprobado en inventario, solo rechazamos el movimiento
+                if (product.estado === 'aprobado') {
+                    apiUrl = `${VITE_APIURL}movimientos/rechazar/${codigoProducto}`;
+                    successMessage = "Movimiento rechazado con éxito";
+                } else {
+                    // Si el producto no existe en inventario, rechazamos directamente el movimiento
+                    apiUrl = `${VITE_APIURL}movimientos/rechazar/${codigoProducto}`;
+                    successMessage = "Producto inexistente, movimiento rechazado";
+                }
+            }
 
             const response = await fetch(apiUrl, {
                 method: 'PUT',
@@ -34,19 +58,19 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.message || 'Error al actualizar el estado del producto');
+                throw new Error(data.message || 'Error al actualizar el estado');
             }
 
-            message.success(`Producto ${selectedStatus} con éxito`);
+            message.success(successMessage);
 
-            // Notificamos al padre que el estado cambió
             if (onStatusChange) {
-                onStatusChange(product.codigo, selectedStatus);
+                onStatusChange(codigoProducto, selectedStatus);
             }
 
             onClose();
         } catch (error) {
-            message.error(error.message || 'Error al actualizar el estado del producto');
+            console.error("Error en aprobación/rechazo:", error.message);
+            message.error(error.message || 'Error al actualizar el estado');
         } finally {
             setLoading(false);
         }
@@ -54,7 +78,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
 
     return (
         <Modal
-            title="Actualizar Estado del Producto"
+            title="Actualizar Estado del Movimiento"
             open={visible}
             onCancel={onClose}
             footer={[
@@ -76,7 +100,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
                 </Button>,
             ]}
         >
-            <p>Selecciona el estado para el producto:</p>
+            <p>Selecciona el estado para aprobar o rechazar el movimiento:</p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '10px' }}>
                 <Button
                     type={selectedStatus === 'aprobado' ? "primary" : "default"}

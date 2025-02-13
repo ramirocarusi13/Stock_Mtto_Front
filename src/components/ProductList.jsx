@@ -1,41 +1,32 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Typography, Card, Button, message } from 'antd';
-import { EditOutlined, CheckOutlined, PlusOutlined } from '@ant-design/icons';
-import AgregarProducto from './AgregarProducto';
-import ModalAprobarProducto from './ModalAprobarProducto';
-import ModalModificarProducto from './ModalModificarProducto'; // Importar el modal de edición
+import { Table, Typography, Card, Button, message, Input } from 'antd';
+import { EditOutlined, CheckOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import AgregarProductoModal from './AgregarProducto';
-import FiltroProductos from './FiltroProductos';
-
-
+import ModalAprobarProducto from './ModalAprobarProducto';
+import ModalModificarProducto from './ModalModificarProducto';
+import EditarcantidadModal from './EditarcantidadModal'; // Importamos el modal de edición de cantidad
 
 const { Title } = Typography;
 
 const ProductList = () => {
     const [productos, setProductos] = useState([]);
-    const [productosPendientes, setProductosPendientes] = useState([]);
+    const [filteredProductos, setFilteredProductos] = useState([]);
+    const [loading, setLoading] = useState(false);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [modalAprobarVisible, setModalAprobarVisible] = useState(false);
     const [modalEditarVisible, setModalEditarVisible] = useState(false);
+    const [isModalCantidadVisible, setIsModalCantidadVisible] = useState(false); // Estado para el modal de cantidad
     const [currentProduct, setCurrentProduct] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [movimientoSeleccionado, setMovimientoSeleccionado] = useState(null); // Movimiento seleccionado
     const [searchText, setSearchText] = useState('');
-    const [searchProveedor, setSearchProveedor] = useState('');
-    const [searchDate, setSearchDate] = useState(null);
-
-
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
-
-    // Obtener los datos del usuario desde localStorage
-    const userData = JSON.parse(localStorage.getItem('user')) || {};
-    const userRole = userData.rol || 'guest'; // Si no hay rol, lo establecemos como "guest"
 
     useEffect(() => {
         fetchProductos();
     }, []);
 
-    // Función para obtener productos con stock real
+    // Función para obtener productos aprobados
     const fetchProductos = async () => {
         setLoading(true);
         try {
@@ -43,7 +34,6 @@ const ProductList = () => {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
                 },
             });
 
@@ -52,26 +42,27 @@ const ProductList = () => {
                 throw new Error(data.message || 'Error al obtener los productos');
             }
 
-            // Obtener stock real para cada producto
+            const productosAprobados = data.data.filter(product => product.estado === 'aprobado');
+
             const productosConStock = await Promise.all(
-                data.data.map(async (product) => {
+                productosAprobados.map(async (product) => {
                     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
                         method: 'GET',
                         headers: {
                             'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                            'Content-Type': 'application/json',
                         },
                     });
 
                     const stockData = await stockResponse.json();
                     return {
                         ...product,
-                        stock_real: stockData.stock_real, // Agregamos el stock real al producto
+                        stock_real: stockData.stock_real || 0,
                     };
                 })
             );
 
             setProductos(productosConStock);
+            setFilteredProductos(productosConStock);
         } catch (error) {
             console.error('Error al obtener los productos:', error);
             message.error('Error al obtener los productos');
@@ -80,67 +71,38 @@ const ProductList = () => {
         }
     };
 
-    const handleApproveClick = (product) => {
-        setCurrentProduct(product);
-        setModalAprobarVisible(true);
+    // Manejo de filtro en tiempo real
+    const handleSearchChange = (e) => {
+        const value = e.target.value.toLowerCase();
+        setSearchText(value);
+
+        const filtered = productos.filter((product) =>
+            product.codigo.toLowerCase().includes(value) ||
+            product.descripcion.toLowerCase().includes(value) ||
+            (product.proveedor && product.proveedor.nombre.toLowerCase().includes(value))
+        );
+
+        setFilteredProductos(filtered);
     };
 
-    const handleEditClick = (product) => {
-        setCurrentProduct(product);
-        setModalEditarVisible(true);
+    // Manejo del modal de edición de cantidad
+    const handleEditCantidad = (producto) => {
+        setMovimientoSeleccionado(producto);
+        setIsModalCantidadVisible(true);
     };
-    const handleStatusChange = async (codigo, newStatus) => {
-        setProductos((prev) =>
-            prev.map((p) =>
-                p.codigo === codigo ? { ...p, estado: newStatus } : p
+
+    // Función para actualizar la cantidad después de editar
+    const handleCantidadUpdated = (codigo, nuevaCantidad) => {
+        setProductos((prevProductos) =>
+            prevProductos.map((prod) =>
+                prod.codigo === codigo ? { ...prod, stock_real: nuevaCantidad } : prod
             )
         );
-    };
-    const handleSearch = () => {
-        setFilteredProductos(productos.filter(item =>
-            item.descripcion.toLowerCase().includes(searchText.toLowerCase()) &&
-            (searchProveedor ? item.proveedor?.nombre.toLowerCase().includes(searchProveedor.toLowerCase()) : true) &&
-            (searchDate ? item.fecha === searchDate.format('YYYY-MM-DD') : true)
-        ));
-
-        setFilteredPendientes(productosPendientes.filter(item =>
-            item.descripcion.toLowerCase().includes(searchText.toLowerCase()) &&
-            (searchProveedor ? item.proveedor?.nombre.toLowerCase().includes(searchProveedor.toLowerCase()) : true) &&
-            (searchDate ? item.fecha === searchDate.format('YYYY-MM-DD') : true)
-        ));
-    };
-
-
-
-    const handleUpdateProduct = async (updatedProduct) => {
-        try {
-            const response = await fetch(`${VITE_APIURL}inventario/${currentProduct.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(updatedProduct),
-            });
-
-            if (!response.ok) {
-                throw new Error('Error al actualizar el producto');
-            }
-
-            message.success('Producto actualizado con éxito');
-
-            // Actualizar la lista de productos en el frontend
-            setProductos((prevProductos) =>
-                prevProductos.map((prod) =>
-                    prod.id === currentProduct.id ? { ...prod, ...updatedProduct } : prod
-                )
-            );
-
-            setModalEditarVisible(false);
-        } catch (error) {
-            console.error('Error al actualizar el producto:', error);
-            message.error('Error al actualizar el producto');
-        }
+        setFilteredProductos((prevProductos) =>
+            prevProductos.map((prod) =>
+                prod.codigo === codigo ? { ...prod, stock_real: nuevaCantidad } : prod
+            )
+        );
     };
 
     return (
@@ -152,21 +114,33 @@ const ProductList = () => {
             maxWidth: '1400px',
             margin: 'auto',
         }}>
-            <div style={{
-                flex: 1,
-                paddingLeft: '20px',
-            }}>
+            <div style={{ flex: 1, paddingLeft: '20px' }}>
                 <Card>
                     <Title level={2} style={{ textAlign: 'center' }}>Productos</Title>
 
-                    <Button
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        onClick={() => setIsModalVisible(true)}
-                        style={{ width: '20%', marginTop: '10px', marginBottom: '20px' }}
-                    >
-                        Agregar Producto
-                    </Button>
+                    <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '20px',
+                    }}>
+                        <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => setIsModalVisible(true)}
+                            style={{ width: '20%' }}
+                        >
+                            Agregar Producto
+                        </Button>
+
+                        <Input
+                            placeholder="Buscar por código, nombre o proveedor..."
+                            prefix={<SearchOutlined />}
+                            value={searchText}
+                            onChange={handleSearchChange}
+                            style={{ width: '40%' }}
+                        />
+                    </div>
 
                     <Table
                         columns={[
@@ -190,17 +164,7 @@ const ProductList = () => {
                                 title: 'Stock Real',
                                 dataIndex: 'stock_real',
                                 key: 'stock_real',
-                                render: (stock) => stock ?? 0, // Si no hay stock, mostrar 0
-                            },
-                            {
-                                title: 'Stock Mínimo',
-                                dataIndex: 'minimo',
-                                key: 'minimo',
-                            },
-                            {
-                                title: 'Máximo',
-                                dataIndex: 'maximo',
-                                key: 'maximo',
+                                render: (stock) => stock ?? 0,
                             },
                             {
                                 title: 'Acciones',
@@ -209,56 +173,59 @@ const ProductList = () => {
                                     <>
                                         <Button
                                             icon={<EditOutlined />}
-                                            onClick={() => handleEditClick(record)}
+                                            onClick={() => handleEditCantidad(record)}
                                             type="primary"
                                             style={{ marginRight: '8px' }}
                                         >
-                                            Editar
+                                            Editar Cantidad
                                         </Button>
-                                        {record.estado === 'pendiente' && (
-                                            <Button
-                                                icon={<CheckOutlined />}
-                                                onClick={() => handleApproveClick(record)}
-                                                type="primary"
-                                                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-                                            >
-                                                Aprobar
-                                            </Button>
-                                        )}
                                     </>
                                 ),
                             },
                         ]}
-                        dataSource={productos}
+                        dataSource={filteredProductos}
                         rowKey="codigo"
                         bordered
                         loading={loading}
                     />
                 </Card>
             </div>
-
             <AgregarProductoModal
                 visible={isModalVisible}
                 onClose={() => setIsModalVisible(false)}
                 onProductAdded={(newProduct) => {
-                    setProductos((prev) => [...prev, { ...newProduct, stock_real: 0 }]);
+                    if (newProduct.estado === 'aprobado') {
+                        setProductos((prev) => [...prev, { ...newProduct, stock_real: 0 }]);
+                        setFilteredProductos((prev) => [...prev, { ...newProduct, stock_real: 0 }]);
+                    }
                 }}
                 VITE_APIURL={VITE_APIURL}
             />
-
+    
             <ModalAprobarProducto
                 visible={modalAprobarVisible}
                 onClose={() => setModalAprobarVisible(false)}
                 product={currentProduct}
-                onStatusChange={handleStatusChange}
+                onStatusChange={(codigo, newStatus) => {
+                    setProductos((prev) =>
+                        prev.map((p) =>
+                            p.codigo === codigo ? { ...p, estado: newStatus } : p
+                        )
+                    );
+                    setFilteredProductos((prev) =>
+                        prev.map((p) =>
+                            p.codigo === codigo ? { ...p, estado: newStatus } : p
+                        )
+                    );
+                }}
                 VITE_APIURL={VITE_APIURL}
             />
 
-            <ModalModificarProducto
-                visible={modalEditarVisible}
-                onClose={() => setModalEditarVisible(false)}
-                onSubmit={fetchProductos} // Recargar lista después de editar
-                initialValues={currentProduct}
+            <EditarcantidadModal
+                visible={isModalCantidadVisible}
+                onClose={() => setIsModalCantidadVisible(false)}
+                movimiento={movimientoSeleccionado}
+                onCantidadUpdated={handleCantidadUpdated}
                 VITE_APIURL={VITE_APIURL}
             />
         </div>

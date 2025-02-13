@@ -95,7 +95,7 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
     const handleFinish = async (values) => {
         setLoading(true);
         try {
-            const response = await fetch(`${VITE_APIURL}/inventario`, {
+            const response = await fetch(`${VITE_APIURL}inventario`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
