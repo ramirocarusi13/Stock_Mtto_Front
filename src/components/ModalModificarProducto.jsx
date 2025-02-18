@@ -23,7 +23,7 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
 
     const handleUpdateProduct = async (updatedProduct) => {
         try {
-            console.log("Datos enviados al backend antes de ajuste:", updatedProduct);
+            /* console.log("Datos enviados al backend antes de ajuste:", updatedProduct); */
 
             if (!VITE_APIURL) {
                 throw new Error("VITE_APIURL no está definido. Verifica tu archivo de configuración.");
@@ -45,7 +45,7 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
             });
 
             const textResponse = await response.text();
-            console.log("Respuesta del servidor:", textResponse);
+            /* console.log("Respuesta del servidor:", textResponse); */
 
             let data;
             try {

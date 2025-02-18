@@ -10,7 +10,8 @@ import Inventario from './pages/Inventario';
 import Salidas from './pages/Salidas'; // Asegúrate de tener estas vistas
 import Prestamos from './pages/Prestamos';
 import PendientesList from './components/PendientesList';
-import Costos from './pages/Costos'; // Importa el nuevo componente
+import Costos from './pages/Costos';
+import Reporte from './pages/Reporte'; // Importa el nuevo componente
 
 const App = () => {
   return (
@@ -24,6 +25,8 @@ const App = () => {
         <Route path="/pañol/salidas" element={<Salidas />} />
         <Route path="/pañol/pendientes" element={<PendientesList />} />
         <Route path="/pañol/costos" element={<Costos />} /> {/* Nueva ruta */}
+        <Route path="/pañol/reporte" element={<Reporte />} /> {/* Nueva ruta */}
+
         <Route path="/" element={<Navigate to="/login" />} />
       </Routes>
     </Router>

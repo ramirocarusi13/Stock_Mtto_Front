@@ -19,7 +19,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
 
             // Asegurar que usamos `codigo_producto` correctamente
             const codigoProducto = product.codigo_producto || product.codigo;
-            console.log("Actualizando estado para código de producto:", codigoProducto);
+            /* console.log("Actualizando estado para código de producto:", codigoProducto); */
 
             let apiUrl = "";
             let successMessage = "";

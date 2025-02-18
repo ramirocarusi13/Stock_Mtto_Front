@@ -71,7 +71,9 @@ const MyMenu = () => {
                             { key: '6', label: <Link to="/pañol/prestamos">Préstamos</Link> },
                             { key: '7', label: <Link to="/pañol/salidas">Salidas</Link> },
                             role === 'gerente' && { key: '8', label: <Link to="/pañol/pendientes">Pendientes</Link> },
-                            role === 'gerente' && { key: '9', label: <Link to="/pañol/costos">Costos</Link> }, // Solo visible para gerentes
+                            role === 'gerente' && { key: '9', label: <Link to="/pañol/costos">Costos</Link> },
+                            role === 'gerente' && { key: '10', label: <Link to="/pañol/reporte">Reporte</Link> }, // Solo visible para gerentes
+                             // Solo visible para gerentes
                              // Solo visible para gerentes
                         ].filter(Boolean), // Filtra elementos nulos (si el usuario no es gerente, no se añade "Pendientes")
                     },

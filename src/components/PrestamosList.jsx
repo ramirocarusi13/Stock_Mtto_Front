@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Input, InputNumber, message, Modal, Form, Select, Card } from 'antd';
+import { Table, Button, Tag, message, Input, InputNumber, Modal, Form, Select, Card } from 'antd';
+import { UserOutlined, CalendarOutlined, PlusOutlined } from '@ant-design/icons';
+import FiltroProductos from './FiltroProductos'; // Importa el componente de filtro
 
 const { Option } = Select;
 
@@ -9,13 +11,12 @@ const PrestamosList = () => {
     const [modalPrestamoVisible, setModalPrestamoVisible] = useState(false);
     const [loading, setLoading] = useState(false);
     const [formPrestamo] = Form.useForm();
-    const [estadisticas, setEstadisticas] = useState({
-        totalPrestamosMes: 0,
-        usuarioMasPrestamos: null,
-    });
+
+    const [searchText, setSearchText] = useState("");
+    const [searchUsuario, setSearchUsuario] = useState("");
+    const [searchDate, setSearchDate] = useState(null);
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
-    const userData = JSON.parse(localStorage.getItem('user')) || {};
 
     useEffect(() => {
         fetchProductos();
@@ -37,39 +38,35 @@ const PrestamosList = () => {
                 throw new Error('Estructura de respuesta incorrecta');
             }
 
-            setProductosAprobados(data.data.filter(producto => producto.estado === 'aprobado'));
+            // Filtrar productos aprobados
+            const productosAprobados = data.data.filter(producto => producto.estado === 'aprobado');
+
+            // Obtener stock real desde movimientos
+            const productosConStock = await Promise.all(
+                productosAprobados.map(async (producto) => {
+                    const stockResponse = await fetch(`${VITE_APIURL}movimientos/${producto.codigo}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    const stockData = await stockResponse.json();
+                    return {
+                        ...producto,
+                        stock_real: stockData.cantidad_total || 0, // Stock basado en movimientos
+                    };
+                })
+            );
+
+            setProductosAprobados(productosConStock);
         } catch (error) {
-            
             message.error('Error al obtener los productos');
         } finally {
             setLoading(false);
         }
     };
-    const handleDevolver = async (id) => {
-        try {
-            const response = await fetch(`${VITE_APIURL}prestamo/${id}/devolver`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-    
-            const responseData = await response.json();
-            console.log("📢 Respuesta de la API al devolver:", responseData);
-    
-            if (!response.ok) {
-                throw new Error(responseData.error || 'Error al devolver el producto');
-            }
-    
-            message.success('Producto devuelto con éxito');
-            fetchPrestamos();
-        } catch (error) {
-            console.error("Error al devolver el producto:", error);
-            message.error('Error al devolver el producto: ' + error.message);
-        }
-    };
-    
 
     const fetchPrestamos = async () => {
         setLoading(true);
@@ -87,36 +84,14 @@ const PrestamosList = () => {
             }
 
             setPrestamos(data.data);
-            
-            calcularEstadisticas(data.data);
         } catch (error) {
-           
             message.error('Error al obtener los préstamos');
         } finally {
             setLoading(false);
         }
     };
 
-    const calcularEstadisticas = (prestamos) => {
-        const mesActual = new Date().getMonth() + 1;
-        const prestamosDelMes = prestamos.filter(p => new Date(p.fecha_prestado).getMonth() + 1 === mesActual);
-        const totalPrestamosMes = prestamosDelMes.length;
-    
-        // Conteo de préstamos por usuario
-        const prestamosPorUsuario = prestamos.reduce((acc, p) => {
-            const usuarioNombre = p.usuario?.name || 'Desconocido';
-            acc[usuarioNombre] = (acc[usuarioNombre] || 0) + 1;
-            return acc;
-        }, {});
-    
-        
-    
-        setEstadisticas({
-            totalPrestamosMes,
-             // 🔹 Ahora muestra el nombre correcto
-        });
-    };
-    
+
 
     const abrirModalPrestamo = () => {
         setModalPrestamoVisible(true);
@@ -127,126 +102,199 @@ const PrestamosList = () => {
         try {
             const values = await formPrestamo.validateFields();
             const producto = productosAprobados.find(p => p.id === values.productoId);
-    
+
             if (!producto) {
                 message.error('Seleccione un producto válido');
                 return;
             }
-    
-            if (values.cantidadPrestada > producto.en_stock) {
-                message.error('No se puede prestar más de lo que hay en stock');
+
+            if (values.cantidadPrestada > producto.stock_real) {
+                message.error('No se puede prestar más cantidad de la disponible');
                 return;
             }
-    
-            
-    
-            const response = await fetch(`${VITE_APIURL}inventario/${producto.id}/prestar`, {
+
+            const cantidad = Math.abs(values.cantidadPrestada) * -1; // Se asegura que sea negativo
+
+            const body = {
+                codigo_producto: producto.codigo,
+                cantidad: cantidad,
+                motivo: "préstamo",
+                receptor_prestamo: values.nombreReceptor,
+                estado: 'aprobado' // Se agrega receptor
+            };
+
+            const response = await fetch(`${VITE_APIURL}movimientos`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al registrar el préstamo');
+            }
+
+            message.success('Préstamo registrado con éxito');
+            setModalPrestamoVisible(false);
+            fetchProductos();
+            fetchPrestamos();
+        } catch (error) {
+            console.error("Error al registrar el préstamo:", error);
+            message.error('Error al registrar el préstamo: ' + error.message);
+        }
+    };
+
+
+    const handleDevolverProducto = async (prestamo) => {
+        try {
+            const response = await fetch(`${VITE_APIURL}prestamo/${prestamo.id}/devolver`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    receptor_prestamo: values.nombreReceptor,
-                    cantidad_prestada: values.cantidadPrestada,
-                    usuario_id: userData.id, // 🔹 Agregando el usuario que hace el préstamo
+                    estado: 'devolucion'
                 }),
             });
     
-            const responseData = await response.json();
-            
-    
             if (!response.ok) {
-                throw new Error(responseData.error || 'Error al prestar el producto');
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Error al registrar la devolución');
             }
     
-            message.success('Producto prestado con éxito');
-            setModalPrestamoVisible(false);
-            fetchProductos();
-            fetchPrestamos();
-        } catch (error) {
+            message.success('Devolución registrada y stock restaurado');
             
-            message.error('Error al realizar el préstamo: ' + error.message);
+            // Esperar la actualización antes de recargar los datos
+            await fetchProductos(); 
+            await fetchPrestamos();
+        } catch (error) {
+            console.error("Error al registrar la devolución:", error);
+            message.error('Error al registrar la devolución: ' + error.message);
         }
     };
     
+    
+
     return (
         <div className="p-6 bg-gray-100 min-h-screen">
-            <h1 className="text-3xl font-bold mb-4 text-center">Lista de Préstamos</h1>
+            <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">📑 Lista de Préstamos</h1>
 
-            <div className="grid grid-cols-2 gap-4 mb-6">
-                <Card className="bg-blue-500 text-white text-center p-4 shadow-lg rounded-lg">
-                    <h2 className="text-lg font-bold">📊 Préstamos este mes</h2>
-                    <p className="text-2xl">{estadisticas.totalPrestamosMes}</p>
-                </Card>
-                
+            <div className="flex justify-between items-center mb-4">
+                <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={abrirModalPrestamo}
+                    className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded transition"
+                >
+                    Prestar Producto
+                </Button>
             </div>
-
-            <Button
-                className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-6 rounded transition mb-4"
-                onClick={abrirModalPrestamo}
-            >
-                Prestar Producto
-            </Button>
 
             <Table
                 columns={[
-                    { title: 'Código', dataIndex: 'inventario', key: 'codigo', render: (inventario) => inventario?.codigo || 'N/A' },
-                    { title: 'Descripción', dataIndex: 'inventario', key: 'descripcion', render: (inventario) => inventario?.descripcion || 'N/A' },
-                    { title: 'Cantidad Prestada', dataIndex: 'cantidad_prestada', key: 'cantidad_prestada' },
-                    { title: 'Receptor', dataIndex: 'receptor_prestamo', key: 'receptor_prestamo' },
-                    { title: 'Usuario', dataIndex: 'usuario', key: 'usuario', render: (_,r) => r?.user?.name || 'N/A' },
-                    { title: 'Fecha de Préstamo', dataIndex: 'fecha_prestado', key: 'fecha_prestado' },
+                    {
+                        title: 'Código',
+                        dataIndex: ['inventario', 'codigo'], // Acceder a la relación inventario
+                        key: 'codigo',
+                        render: (codigo) => <Tag color="blue">{codigo || 'N/A'}</Tag>,
+                    },
+                    {
+                        title: 'Descripción',
+                        dataIndex: ['inventario', 'descripcion'], // Acceder a la relación inventario
+                        key: 'descripcion',
+                        render: (descripcion) => <Tag color="purple">{descripcion || 'N/A'}</Tag>,
+                    },
+                    {
+                        title: 'Cantidad Prestada',
+                        dataIndex: 'cantidad',
+                        key: 'cantidad',
+                        render: (cantidad) => (
+                            <Tag color="red" className="font-semibold text-lg">{cantidad}</Tag>
+                        ),
+                    },
+                    {
+                        title: 'Receptor',
+                        dataIndex: 'receptor_prestamo',
+                        key: 'receptor_prestamo',
+                    },
+                    {
+                        title: 'Usuario',
+                        dataIndex: ['usuario', 'name'], // Acceder a la relación usuario
+                        key: 'usuario',
+                        render: (usuario) => (
+                            <Tag icon={<UserOutlined />} color="geekblue">
+                                {usuario || 'N/A'}
+                            </Tag>
+                        ),
+                    },
+                    {
+                        title: 'Fecha de Préstamo',
+                        dataIndex: 'created_at',
+                        key: 'fecha_prestado',
+                        render: (fecha) => (
+                            <Tag icon={<CalendarOutlined />} color="green">
+                                {new Date(fecha).toLocaleDateString()}
+                            </Tag>
+                        ),
+                    },
                     {
                         title: 'Fecha de Devolución',
                         dataIndex: 'fecha_devolucion',
                         key: 'fecha_devolucion',
-                        render: (text) => text ? new Date(text).toLocaleDateString() : 'No devuelto'
+                        render: (text) => (
+                            text
+                                ? <Tag color="cyan">{new Date(text).toLocaleDateString()}</Tag>
+                                : <Tag color="red">No devuelto</Tag>
+                        ),
                     },
-                    
                     {
                         title: 'Acciones',
                         key: 'acciones',
                         render: (_, record) => (
-                            !record.devuelto ? (
-                                <Button 
-                                    className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition"
-                                    onClick={() => handleDevolver(record.id)}
+                            record.fecha_devolucion ? (
+                                <Tag color="blue">Devuelto</Tag> // Muestra un tag azul cuando está devuelto
+                            ) : (
+                                <Button
+                                    type="primary"
+                                    onClick={() => handleDevolverProducto(record)}
+                                    className="bg-green-500 hover:bg-green-600 text-white"
                                 >
                                     Devolver
                                 </Button>
-                            ) : (
-                                <span className="text-green-600 font-semibold">Devuelto</span>
                             )
                         ),
                     },
                     
                 ]}
                 dataSource={prestamos}
-                rowKey='id'
-                loading={loading}
+                rowKey={(record) => `${record.inventario?.codigo}-${record.created_at}-${record.receptor_prestamo}`}
                 bordered
                 className="shadow-md bg-white rounded-lg"
+                pagination={{ pageSize: 8 }}
             />
-
-<Modal
+            <Modal
                 title="Prestar Producto"
                 open={modalPrestamoVisible}
-                onOk={handlePrestarProducto}
+                onOk={() => formPrestamo.submit()}
                 onCancel={() => setModalPrestamoVisible(false)}
                 okText="Confirmar Préstamo"
                 cancelText="Cancelar"
+                className="p-6 rounded-lg shadow-lg"
             >
-                <Form form={formPrestamo} layout="vertical">
+                <Form form={formPrestamo} layout="vertical" onFinish={handlePrestarProducto}>
                     <Form.Item
                         label="Seleccionar Producto"
                         name="productoId"
                         rules={[{ required: true, message: 'Seleccione un producto' }]}
                     >
-                        <Select placeholder="Seleccione un producto">
+                        <Select showSearch className="border rounded-lg">
                             {productosAprobados.map((producto) => (
                                 <Option key={producto.id} value={producto.id}>
-                                    {producto.descripcion} - Stock: {producto.en_stock}
+                                    {producto.descripcion} - Stock: {producto.stock_real}
                                 </Option>
                             ))}
                         </Select>
@@ -257,7 +305,7 @@ const PrestamosList = () => {
                         name="nombreReceptor"
                         rules={[{ required: true, message: 'Ingrese el nombre del receptor' }]}
                     >
-                        <Input />
+                        <Input className="border rounded-lg p-2" />
                     </Form.Item>
 
                     <Form.Item
@@ -265,7 +313,7 @@ const PrestamosList = () => {
                         name="cantidadPrestada"
                         rules={[{ required: true, message: 'Ingrese la cantidad a prestar' }]}
                     >
-                        <InputNumber min={1} style={{ width: '100%' }} />
+                        <InputNumber min={1} className="w-full border rounded-lg p-2" />
                     </Form.Item>
                 </Form>
             </Modal>

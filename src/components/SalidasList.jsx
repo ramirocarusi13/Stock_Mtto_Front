@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Table, Button, Tag, message, Input, DatePicker, Space, Modal, Form, Select, InputNumber } from 'antd';
 import { UserOutlined, CalendarOutlined, BarcodeOutlined, InboxOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import FiltroSalidas from './FiltroSalidas';
+
 
 const { RangePicker } = DatePicker;
 const { Option } = Select;
@@ -28,7 +30,7 @@ const SalidasList = () => {
     const fetchSalidas = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${VITE_APIURL}movimientos?motivo=egreso`, { 
+            const response = await fetch(`${VITE_APIURL}movimientos?motivo=egreso`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
@@ -111,31 +113,36 @@ const SalidasList = () => {
     // Filtro por rango de fechas
     const handleDateChange = (dates) => {
         setSelectedDates(dates);
-        applyFilters(searchText, dates);
+        onSearch(searchText, dates); // Aplica filtro en tiempo real
     };
+    
 
     // Aplicar filtros combinados
     const applyFilters = (searchValue, dateRange) => {
         let filtered = salidas;
-
-        // Filtrar por nombre de producto
+    
+        // Filtrar por código de producto
         if (searchValue) {
             filtered = filtered.filter(salida =>
-                salida.producto?.descripcion.toLowerCase().includes(searchValue)
+                salida.codigo_producto.toLowerCase().includes(searchValue)
             );
         }
-
+    
         // Filtrar por rango de fechas
         if (dateRange && dateRange.length === 2) {
             const [start, end] = dateRange;
+    
             filtered = filtered.filter(salida => {
-                const salidaFecha = dayjs(salida.created_at);
-                return salidaFecha.isAfter(start) && salidaFecha.isBefore(end);
+                const salidaFecha = dayjs(salida.created_at); // Convertir en objeto dayjs()
+                return salidaFecha.isValid() && salidaFecha.isAfter(start.subtract(1, 'day')) && salidaFecha.isBefore(end.add(1, 'day'));
             });
         }
-
+    
         setFilteredSalidas(filtered);
     };
+    
+    
+
 
     const abrirModalSalida = () => {
         setModalSalidaVisible(true);
@@ -156,9 +163,9 @@ const SalidasList = () => {
                 message.error('No se puede registrar más cantidad de la disponible');
                 return;
             }
-            const cantidad = Math.abs(values.cantidadSalida)*-1
+            const cantidad = Math.abs(values.cantidadSalida) * -1;
+
             const response = await fetch(`${VITE_APIURL}movimientos`, {
-                
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -166,11 +173,12 @@ const SalidasList = () => {
                 },
                 body: JSON.stringify({
                     codigo_producto: producto.codigo,
-                    cantidad: cantidad, // Se asegura que la cantidad sea negativa
+                    cantidad: cantidad,
                     motivo: 'egreso',
+                    estado: 'aprobado',
+                    observacion_salida: values.observacionSalida || '' // ✅ Se envía la observación
                 }),
             });
-            
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -187,6 +195,7 @@ const SalidasList = () => {
         }
     };
 
+
     // Manejo del filtro en tiempo real
     const handleSearchProductoChange = (value) => {
         setSearchText(value.toLowerCase());
@@ -202,7 +211,6 @@ const SalidasList = () => {
         <div className="p-6 bg-gray-100 min-h-screen">
             <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">📦 Registro de Salidas</h1>
 
-            {/* Filtros y botón alineados a la derecha */}
             <div className="flex justify-between items-center mb-4">
                 <Button
                     type="primary"
@@ -213,21 +221,16 @@ const SalidasList = () => {
                     Registrar Salida
                 </Button>
 
-                <Space>
-                    <Input
-                        placeholder="Buscar por nombre de producto..."
-                        onChange={handleSearchChange}
-                        value={searchText}
-                        className="w-60"
-                    />
-
-                    <RangePicker
-                        onChange={handleDateChange}
-                        className="w-72"
-                        format="YYYY-MM-DD"
-                    />
-                </Space>
+                <FiltroSalidas
+                    searchText={searchText}
+                    setSearchText={setSearchText}
+                    selectedDates={selectedDates}
+                    setSelectedDates={setSelectedDates}
+                    onSearch={applyFilters}
+                />
             </div>
+
+
 
             <Table
                 columns={[
@@ -271,6 +274,15 @@ const SalidasList = () => {
                             </Tag>
                         ),
                     },
+                    {
+                        title: 'Observación',
+                        dataIndex: 'observacion_salida',
+                        key: 'observacion_salida',
+                        render: (observacion) => (
+                            <Tag color="gold">{observacion || 'Sin observación'}</Tag>
+                        ),
+                    },
+
                     {
                         title: 'Fecha',
                         dataIndex: 'created_at',
@@ -335,8 +347,18 @@ const SalidasList = () => {
                     >
                         <Input disabled className="border border-gray-300 rounded-md p-2" />
                     </Form.Item>
+
+                    {/* Nuevo Campo de Observación */}
+                    <Form.Item
+                        label="Observación de la Salida"
+                        name="observacionSalida"
+                    >
+                        <Input.TextArea placeholder="Ingrese una observación (opcional)" rows={3} />
+                    </Form.Item>
+
                 </Form>
             </Modal>
+
         </div>
     );
 };
