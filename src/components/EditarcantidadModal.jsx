@@ -12,21 +12,30 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
         }
 
         setLoading(true);
+
         try {
+            console.log("Movimiento recibido:", movimiento); // 🔹 Debug para verificar los datos del movimiento
+
+            const nuevoMovimiento = {
+                codigo_producto: movimiento?.codigo_producto || movimiento?.codigo, // 🔹 Aseguramos el código correcto
+                cantidad: nuevaCantidad,
+                motivo: 'ingreso', // Se puede cambiar según la lógica del negocio
+                estado: 'pendiente', // 🔹 Se asegura que el movimiento quede pendiente
+            };
+
+            console.log("Datos enviados al backend:", nuevoMovimiento); // 🔹 Debug
+
             const response = await fetch(`${VITE_APIURL}movimientos`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    codigo_producto: movimiento.codigo, // Ahora sí enviamos el código del producto
-                    cantidad: nuevaCantidad,
-                    motivo: 'ingreso', // Se puede modificar según el tipo de movimiento
-                }),
+                body: JSON.stringify(nuevoMovimiento),
             });
 
             const data = await response.json();
+            console.log("Respuesta del backend:", data); // 🔹 Debug
 
             if (!response.ok) {
                 throw new Error(data.message || 'Error al crear el nuevo movimiento');
@@ -35,6 +44,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
             message.success('Nuevo movimiento creado con éxito, pendiente de aprobación');
             onClose();
         } catch (error) {
+            console.error('Error:', error);
             message.error(error.message || 'Error al crear el nuevo movimiento');
         } finally {
             setLoading(false);

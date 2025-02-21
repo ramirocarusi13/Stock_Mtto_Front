@@ -3,7 +3,7 @@ import { Modal, Form, Input, InputNumber, Select, message } from 'antd';
 
 const { Option } = Select;
 
-function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, descripcionOptions = [], proveedorOptions = [],}) {
+function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, descripcionOptions = [], proveedorOptions = [] }) {
     const [form] = Form.useForm();
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
@@ -14,6 +14,7 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
                 punto_de_pedido: initialValues.punto_de_pedido || initialValues.minimo || 0,
             };
             form.setFieldsValue(prefilledValues);
+            actualizarCostoTotal();
         }
     }, [visible, initialValues]);
 
@@ -21,10 +22,15 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
         return null;
     }
 
+    // ✅ Función para actualizar automáticamente el costo total
+    const actualizarCostoTotal = () => {
+        const { en_stock, costo_por_unidad } = form.getFieldsValue(['en_stock', 'costo_por_unidad']);
+        const costoTotal = (en_stock || 0) * (costo_por_unidad || 0);
+        form.setFieldsValue({ costo_total: costoTotal.toFixed(2) });
+    };
+
     const handleUpdateProduct = async (updatedProduct) => {
         try {
-            /* console.log("Datos enviados al backend antes de ajuste:", updatedProduct); */
-
             if (!VITE_APIURL) {
                 throw new Error("VITE_APIURL no está definido. Verifica tu archivo de configuración.");
             }
@@ -45,7 +51,6 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
             });
 
             const textResponse = await response.text();
-            /* console.log("Respuesta del servidor:", textResponse); */
 
             let data;
             try {
@@ -82,10 +87,6 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
         form.resetFields();
         onClose();
     };
-
-    // 🔹 Obtener usuario desde localStorage y verificar si es gerente
-    const userData = JSON.parse(localStorage.getItem('user')) || {};
-    const isGerente = userData.rol === 'gerente';
 
     return (
         <Modal
@@ -138,7 +139,12 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
                     name="en_stock"
                     rules={[{ required: true, message: 'Por favor, ingrese el stock actual' }]}
                 >
-                    <InputNumber placeholder="Ingrese el stock actual" min={0} style={{ width: '100%' }} />
+                    <InputNumber 
+                        placeholder="Ingrese el stock actual" 
+                        min={0} 
+                        style={{ width: '100%' }} 
+                        onChange={actualizarCostoTotal}
+                    />
                 </Form.Item>
 
                 <Form.Item
@@ -157,24 +163,31 @@ function ModalModificarProducto({ visible, onClose, onSubmit, initialValues, des
                     <InputNumber placeholder="Ingrese el stock máximo" min={0} style={{ width: '100%' }} />
                 </Form.Item>
 
-                {/* 🔹 Mostrar solo si el usuario es gerente */}
-                {isGerente && (
-                    <>
-                        <Form.Item
-                            label="Costo Proveedor (USD)"
-                            name="costo_proveedor_usd"
-                        >
-                            <InputNumber placeholder="Ingrese el costo en USD" min={0} style={{ width: '100%' }} />
-                        </Form.Item>
+                {/* ✅ NUEVO CAMPO - Costo por Unidad */}
+                <Form.Item
+                    label="Costo por Unidad"
+                    name="costo_por_unidad"
+                    rules={[{ required: true, message: 'Por favor, ingrese el costo por unidad' }]}
+                >
+                    <InputNumber 
+                        placeholder="Ingrese el costo por unidad" 
+                        min={0} 
+                        style={{ width: '100%' }} 
+                        onChange={actualizarCostoTotal}
+                    />
+                </Form.Item>
 
-                        <Form.Item
-                            label="Gastos de Importación (ARS)"
-                            name="gastos_importacion_ars"
-                        >
-                            <InputNumber placeholder="Ingrese los gastos en ARS" min={0} style={{ width: '100%' }} />
-                        </Form.Item>
-                    </>
-                )}
+                {/* ✅ NUEVO CAMPO - Costo Total (Calculado Automáticamente) */}
+                <Form.Item
+                    label="Costo Total"
+                    name="costo_total"
+                >
+                    <InputNumber 
+                        style={{ width: '100%' }} 
+                        disabled 
+                    />
+                </Form.Item>
+
             </Form>
         </Modal>
     );

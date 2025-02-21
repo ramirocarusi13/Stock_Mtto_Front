@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Table, Button, Card, message } from 'antd';
-import { DollarCircleOutlined, MoneyCollectOutlined } from '@ant-design/icons';
+import { DollarCircleOutlined } from '@ant-design/icons';
 import MyMenu from '../components/Menu';
 import ModalModificarProducto from '../components/ModalModificarProducto';
 
@@ -11,8 +11,7 @@ const Costos = () => {
     const [loading, setLoading] = useState(false);
     const [modalEditarVisible, setModalEditarVisible] = useState(false);
     const [currentProduct, setCurrentProduct] = useState(null);
-    const [totalCostoProveedor, setTotalCostoProveedor] = useState(0);
-    const [totalGastosImportacion, setTotalGastosImportacion] = useState(0);
+    const [totalCostoInventario, setTotalCostoInventario] = useState(0);
 
     useEffect(() => {
         fetchProductos();
@@ -30,16 +29,13 @@ const Costos = () => {
             const data = await response.json();
             setProductos(data.data);
 
-            // Calcular los totales con base en el stock
+            // Calcular el total del costo del inventario
             let totalCosto = 0;
-            let totalGastos = 0;
             data.data.forEach(producto => {
-                totalCosto += (parseFloat(producto.costo_proveedor_usd) || 0) * (parseInt(producto.en_stock) || 0);
-                totalGastos += (parseFloat(producto.gastos_importacion_ars) || 0) * (parseInt(producto.en_stock) || 0);
+                totalCosto += (parseFloat(producto.costo_por_unidad) || 0) * (parseInt(producto.en_stock) || 0);
             });
 
-            setTotalCostoProveedor(totalCosto);
-            setTotalGastosImportacion(totalGastos);
+            setTotalCostoInventario(totalCosto);
         } catch (error) {
             message.error('Error al obtener los productos');
         } finally {
@@ -93,26 +89,18 @@ const Costos = () => {
             key: 'en_stock',
         },
         {
-            title: 'Costo Proveedor (USD)',
-            dataIndex: 'costo_proveedor_usd',
-            key: 'costo_proveedor_usd',
-            render: (value) => `$${value}`,
-        },
-        {
-            title: 'Gastos Importación (USD)',
-            dataIndex: 'gastos_importacion_ars',
-            key: 'gastos_importacion_ars',
-            render: (value) => `$${value}`,
+            title: 'Costo por Unidad (USD)',
+            dataIndex: 'costo_por_unidad',
+            key: 'costo_por_unidad',
+            render: (value) => value ? `$${parseFloat(value).toFixed(2)}` : '-',
         },
         {
             title: 'Costo Total (USD)',
-            key: 'costo_total_usd',
-            render: (_, record) => `$${(record.costo_proveedor_usd * record.en_stock).toFixed(2)}`,
-        },
-        {
-            title: 'Gasto Total Importación (USD)',
-            key: 'gasto_total_ars',
-            render: (_, record) => `$${(record.gastos_importacion_ars * record.en_stock).toFixed(2)}`,
+            key: 'costo_total',
+            render: (_, record) => {
+                const costoTotal = (record.costo_por_unidad * record.en_stock).toFixed(2);
+                return `$${costoTotal}`;
+            },
         },
         {
             title: 'Acciones',
@@ -129,27 +117,16 @@ const Costos = () => {
             <div style={{ flex: 1, padding: '20px' }}>
                 <h1>Gestión de Costos</h1>
 
-                {/* Tarjetas con Totales */}
+                {/* Tarjeta con el Costo Total del Inventario */}
                 <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
                     <Card
-                        style={{ width: 300, backgroundColor: '#1890ff', color: 'white' }}
+                        style={{ width: 350, backgroundColor: '#1890ff', color: 'white' }}
                         bordered={false}
                     >
-                        <h3 style={{ color: 'white' }}>Costo Total Proveedor (USD)</h3>
+                        <h3 style={{ color: 'white' }}>Costo Total del Inventario (USD)</h3>
                         <p style={{ fontSize: '24px', fontWeight: 'bold' }}>
                             <DollarCircleOutlined style={{ marginRight: '10px' }} />
-                            ${totalCostoProveedor.toFixed(2)}
-                        </p>
-                    </Card>
-
-                    <Card
-                        style={{ width: 300, backgroundColor: '#faad14', color: 'white' }}
-                        bordered={false}
-                    >
-                        <h3 style={{ color: 'white' }}>Total Gastos Importación (USD)</h3>
-                        <p style={{ fontSize: '24px', fontWeight: 'bold' }}>
-                            <MoneyCollectOutlined style={{ marginRight: '10px' }} />
-                            ${totalGastosImportacion.toFixed(2)}
+                            ${totalCostoInventario.toFixed(2)}
                         </p>
                     </Card>
                 </div>
