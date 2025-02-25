@@ -118,7 +118,7 @@ const PrestamosList = () => {
             const body = {
                 codigo_producto: producto.codigo,
                 cantidad: cantidad,
-                motivo: "préstamo",
+                motivo: "prestamo",
                 receptor_prestamo: values.nombreReceptor,
                 estado: 'aprobado' // Se agrega receptor
             };
@@ -281,7 +281,7 @@ const PrestamosList = () => {
                 open={modalPrestamoVisible}
                 onOk={() => formPrestamo.submit()}
                 onCancel={() => setModalPrestamoVisible(false)}
-                okText="Confirmar Préstamo"
+                okText="Confirmar Prestamo"
                 cancelText="Cancelar"
                 className="p-6 rounded-lg shadow-lg"
             >
