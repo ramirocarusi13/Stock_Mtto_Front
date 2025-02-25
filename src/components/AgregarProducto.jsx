@@ -9,6 +9,7 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
     const [categorias, setCategorias] = useState([]);
     const [productos, setProductos] = useState([]); // Lista de productos existentes
     const [filteredProductos, setFilteredProductos] = useState([]); // Productos filtrados en tiempo real
+    const [productoExistente, setProductoExistente] = useState(null); // Producto ya creado
     const [loading, setLoading] = useState(false);
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
@@ -18,22 +19,19 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
             fetchProveedores();
             fetchCategorias();
             fetchProductos();
+            form.resetFields();
+            setProductoExistente(null);
         }
     }, [visible]);
 
     const fetchCategorias = async () => {
         try {
             const response = await fetch(`${VITE_APIURL}categorias`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
             });
-
-            if (!response.ok) {
-                throw new Error('Error al obtener las categorías');
-            }
-
+            if (!response.ok) throw new Error('Error al obtener las categorías');
             const data = await response.json();
+            
             setCategorias(data);
         } catch (error) {
             console.error('Error al cargar categorías:', error);
@@ -44,16 +42,11 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
     const fetchProveedores = async () => {
         try {
             const response = await fetch(`${VITE_APIURL}proveedores`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
             });
-
-            if (!response.ok) {
-                throw new Error('Error al obtener los proveedores');
-            }
-
+            if (!response.ok) throw new Error('Error al obtener los proveedores');
             const data = await response.json();
+            /* console.log("Proveedores obtenidos:", data); */
             setProveedores(data);
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
@@ -64,17 +57,12 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
     const fetchProductos = async () => {
         try {
             const response = await fetch(`${VITE_APIURL}inventario`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
             });
-
-            if (!response.ok) {
-                throw new Error('Error al obtener los productos');
-            }
-
+            if (!response.ok) throw new Error('Error al obtener los productos');
             const data = await response.json();
-            setProductos(data.data); // Guardamos la lista de productos en el estado
+            /* console.log("Productos obtenidos:", data); */
+            setProductos(data.data);
         } catch (error) {
             console.error('Error al cargar productos:', error);
             message.error('No se pudieron cargar los productos');
@@ -88,13 +76,32 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                 value: producto.codigo,
                 label: `${producto.codigo} - ${producto.descripcion}`,
             }));
-
+        /* console.log("Filtrado de productos para código:", filtered); */
         setFilteredProductos(filtered);
     };
 
+    // Cada vez que cambie el valor del campo "Código", se verifica si el producto ya existe
+    const handleValuesChange = (changedValues, allValues) => {
+        if (changedValues.codigo !== undefined) {
+            const codigo = changedValues.codigo;
+            const prod = productos.find(
+                (p) => p.codigo.toLowerCase() === codigo.toLowerCase()
+            );
+            
+            setProductoExistente(prod || null);
+        }
+    };
+
     const handleFinish = async (values) => {
+        /* console.log("Valores del formulario antes de enviar:", values); */
         setLoading(true);
         try {
+            // Si el producto ya existe, eliminamos los campos mínimo y máximo del payload
+            if (productoExistente) {
+                delete values.minimo;
+                delete values.maximo;
+                /* console.log("Producto existente. Se eliminan los campos mínimo y máximo."); */
+            }
             const response = await fetch(`${VITE_APIURL}inventario`, {
                 method: 'POST',
                 headers: {
@@ -103,19 +110,15 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                 },
                 body: JSON.stringify(values),
             });
-
             const data = await response.json();
-
+            /* console.log("Respuesta del servidor:", data); */
             if (!response.ok) {
                 throw new Error(data.message || 'Error al agregar el producto');
             }
-
             message.success('Producto agregado con éxito');
-
             if (onProductAdded) {
                 onProductAdded(data.producto);
             }
-
             form.resetFields();
             onClose();
         } catch (error) {
@@ -140,6 +143,7 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                 form={form}
                 layout="vertical"
                 onFinish={handleFinish}
+                onValuesChange={handleValuesChange}
                 initialValues={{
                     codigo: '',
                     descripcion: '',
@@ -201,28 +205,14 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                 </Form.Item>
 
                 <Form.Item
-                    label="Stock Inicial"
+                    label="Cantidad"
                     name="en_stock"
                     rules={[{ required: true, message: 'El stock inicial es obligatorio' }]}
                 >
                     <InputNumber min={0} placeholder="Cantidad inicial en stock" style={{ width: '100%' }} />
                 </Form.Item>
 
-                <Form.Item
-                    label="Mínimo en Stock"
-                    name="minimo"
-                    rules={[{ required: true, message: 'El mínimo en stock es obligatorio' }]}
-                >
-                    <InputNumber min={0} placeholder="Cantidad mínima en stock" style={{ width: '100%' }} />
-                </Form.Item>
-
-                <Form.Item
-                    label="Máximo en Stock"
-                    name="maximo"
-                    rules={[{ required: true, message: 'El máximo en stock es obligatorio' }]}
-                >
-                    <InputNumber min={0} placeholder="Cantidad máxima en stock" style={{ width: '100%' }} />
-                </Form.Item>
+                
 
                 <Form.Item>
                     <Button type="primary" htmlType="submit" loading={loading} block>

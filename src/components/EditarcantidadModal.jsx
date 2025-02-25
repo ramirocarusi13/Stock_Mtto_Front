@@ -14,7 +14,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
         setLoading(true);
 
         try {
-            console.log("Movimiento recibido:", movimiento); // 🔹 Debug para verificar los datos del movimiento
+            
 
             const nuevoMovimiento = {
                 codigo_producto: movimiento?.codigo_producto || movimiento?.codigo, // 🔹 Aseguramos el código correcto
@@ -23,7 +23,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
                 estado: 'pendiente', // 🔹 Se asegura que el movimiento quede pendiente
             };
 
-            console.log("Datos enviados al backend:", nuevoMovimiento); // 🔹 Debug
+            
 
             const response = await fetch(`${VITE_APIURL}movimientos`, {
                 method: 'POST',
@@ -35,7 +35,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
             });
 
             const data = await response.json();
-            console.log("Respuesta del backend:", data); // 🔹 Debug
+            
 
             if (!response.ok) {
                 throw new Error(data.message || 'Error al crear el nuevo movimiento');

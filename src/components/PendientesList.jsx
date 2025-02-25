@@ -33,6 +33,7 @@ const PendientesList = () => {
                 }
 
                 const movimientosData = await movimientosResponse.json();
+                
 
 
                 // Obtener información del producto desde inventario para cada movimiento

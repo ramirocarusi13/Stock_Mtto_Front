@@ -43,25 +43,25 @@ const ProductList = () => {
 
             const productosAprobados = data.data.filter(product => product.estado === 'aprobado');
 
-            const productosConStock = await Promise.all(
-                productosAprobados.map(async (product) => {
-                    const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        },
-                    });
+            // const productosConStock = await Promise.all(
+                // productosAprobados.map(async (product) => {
+                //     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
+                //         method: 'GET',
+                //         headers: {
+                //             'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                //         },
+                //     });
 
-                    const stockData = await stockResponse.json();
-                    return {
-                        ...product,
-                        stock_real: stockData.stock_real || 0,
-                    };
-                })
-            );
+                //     const stockData = await stockResponse.json();
+                //     return {
+                //         ...product,
+                //         stock_real: stockData.stock_real || 0,
+                //     };
+                // })
+            // );
 
-            setProductos(productosConStock);
-            setFilteredProductos(productosConStock);
+            setProductos(productosAprobados);
+            setFilteredProductos(productosAprobados);
         } catch (error) {
             console.error('Error al obtener los productos:', error);
             message.error('Error al obtener los productos');
@@ -151,11 +151,12 @@ const ProductList = () => {
                                 title: 'Stock Real',
                                 dataIndex: 'stock_real',
                                 key: 'stock_real',
-                                render: (stock) => (
-                                    <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
+                                render: (_, record) => {
+                                    const stock = record?.stock?.reduce((prev, cur) => prev + cur.cantidad, 0)
+                                    return <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
                                         {stock ?? 0}
                                     </span>
-                                ),
+                                },
                             },
                             {
                                 title: 'Acciones',
@@ -180,8 +181,8 @@ const ProductList = () => {
                         rowClassName="hover:bg-gray-50 transition duration-200"
                     />
                 </Card>
-            </div>
 
+            </div>
             <AgregarProductoModal
                 visible={isModalVisible}
                 onClose={() => setIsModalVisible(false)}
@@ -220,7 +221,10 @@ const ProductList = () => {
                 onCantidadUpdated={handleCantidadUpdated}
                 VITE_APIURL={VITE_APIURL}
             />
-        </div>
+
+
+        </div >
+
     );
 };
 

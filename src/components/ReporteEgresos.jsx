@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Table, DatePicker, message, Button } from 'antd';
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { Table, DatePicker, message, Button, Select } from 'antd';
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
 const { RangePicker } = DatePicker;
+const { Option } = Select;
 
 const ReporteEgresos = () => {
     const [fechaFiltro, setFechaFiltro] = useState([]);
@@ -12,6 +13,9 @@ const ReporteEgresos = () => {
     const [egresosPorCategoria, setEgresosPorCategoria] = useState([]);
     const [costosPorCategoria, setCostosPorCategoria] = useState([]);
     const [rangoFechasTitulo, setRangoFechasTitulo] = useState('');
+    const [productosCercanosStockMinimo, setProductosCercanosStockMinimo] = useState([]);
+    const [categoriaFiltro, setCategoriaFiltro] = useState(null); // Estado para la categoría seleccionada
+    const [categoriasDisponibles, setCategoriasDisponibles] = useState([]); // Lista de categorías únicas
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
@@ -36,7 +40,7 @@ const ReporteEgresos = () => {
             if (!response.ok) throw new Error('Error al obtener egresos.');
 
             const data = await response.json();
-            console.log(data);
+
 
             setEgresos(data.egresos);
             setTotalEgresos(data.egresos.reduce((acc, egreso) => acc + Math.abs(egreso.cantidad), 0));
@@ -68,6 +72,22 @@ const ReporteEgresos = () => {
 
             setEgresosPorCategoria(categoriasProcesadas);
             setCostosPorCategoria(costosProcesados);
+
+            // Calcular productos cercanos al stock mínimo
+            const productosCercanos = data.egresos
+                .map(egreso => egreso.producto)
+                .filter(producto => producto && producto.en_stock !== undefined && producto.minimo !== undefined)
+                .map(producto => ({
+                    nombre: producto.descripcion, // Nombre del producto para el eje Y
+                    stockActual: parseInt(producto.en_stock, 10), // Convertir a número
+                    stockMinimo: parseInt(producto.minimo, 10), // Convertir a número
+                    diferencia: parseInt(producto.en_stock, 10) - parseInt(producto.minimo, 10), // Calcular diferencia
+                }))
+                .filter(producto => producto.diferencia <= 10 && producto.diferencia >= 0) // Filtrar productos con stock cercano al mínimo
+                .sort((a, b) => a.diferencia - b.diferencia);
+
+
+            setProductosCercanosStockMinimo(productosCercanos);
         } catch (error) {
             console.error('Error:', error);
             message.error('No se pudieron obtener los egresos.');
@@ -75,10 +95,26 @@ const ReporteEgresos = () => {
             setLoading(false);
         }
     };
+    useEffect(() => {
+        const categoriasUnicas = Array.from(new Set(egresos.map(egreso => egreso.producto?.categoria?.nombre || "Sin categoría")));
+        setCategoriasDisponibles(categoriasUnicas);
+    }, [egresos]);
+
 
     const handlePrint = () => {
         window.print();
     };
+    const egresosFiltrados = categoriaFiltro
+        ? egresos.filter(egreso => (egreso.producto?.categoria?.nombre || "Sin categoría") === categoriaFiltro)
+        : egresos;
+
+    productosCercanosStockMinimo.map(producto => ({
+        nombre: producto.descripcion, // Se usa como clave para el eje Y
+        diferencia: producto.en_stock - producto.stock_minimo, // Se usa para la barra
+    }))
+
+
+
 
     const columns = [
         { title: 'Código', dataIndex: 'codigo_producto', key: 'codigo' },
@@ -108,7 +144,30 @@ const ReporteEgresos = () => {
             render: (_, record) => record?.producto?.categoria?.nombre || 'N/A'
         },
     ];
+    // 1️⃣ Extraemos los productos de los egresos
+    const productosEgresados = egresos
+        .map(egreso => egreso.producto) // Extraemos los productos dentro de los egresos
+        .filter(producto => producto && producto.en_stock !== undefined && producto.minimo !== undefined) // Validamos que tenga stock y mínimo
 
+    // 2️⃣ Filtramos los productos con stock crítico
+    const productosFiltrados = productosEgresados
+        .map(producto => ({
+            id: producto.id,
+            nombre: producto.descripcion,
+            stockActual: parseInt(producto.en_stock, 10),
+            stockMinimo: parseInt(producto.minimo, 10),
+            diferencia: parseInt(producto.en_stock, 10) - parseInt(producto.minimo, 10),
+        }))
+        .filter(producto => producto.stockActual <= producto.stockMinimo + 10) // TODOS los que estén en riesgo
+        .sort((a, b) => a.diferencia - b.diferencia); // Ordenar de menor a mayor stock
+
+    // 3️⃣ Eliminamos productos duplicados correctamente (basado en ID y Stock Actual)
+    const productosUnicos = Array.from(
+        new Map(productosFiltrados.map(producto => [`${producto.id}-${producto.stockActual}`, producto])).values()
+    );
+
+    // 4️⃣ Tomar los primeros 5 productos en riesgo, pero si hay menos de 5, mostrar todos
+    const productosOrdenados = productosUnicos.slice(0, 5);
     return (
         <div className="p-2 bg-gray-100 min-h-screen">
             <div className='flex flex-row justify-between items-center w-full px-4'>
@@ -116,6 +175,20 @@ const ReporteEgresos = () => {
                 <h2 className="text-md font-semibold mb-3 text-center">{rangoFechasTitulo}</h2>
                 <div className="flex justify-center mb-3 space-x-2">
                     <RangePicker onChange={setFechaFiltro} className="p-1 rounded border text-sm" />
+                    <Select
+                        placeholder="Filtrar por categoría"
+                        className="w-60"
+                        allowClear
+                        onChange={value => {
+                            
+                            setCategoriaFiltro(value);
+                        }}
+                    >
+                        {categoriasDisponibles.map((categoria, index) => (
+                            <Option key={index} value={categoria}>{categoria}</Option>
+                        ))}
+                    </Select>
+
                     <Button type="primary" onClick={fetchEgresos} loading={loading} size="medium">
                         Buscar
                     </Button>
@@ -128,7 +201,7 @@ const ReporteEgresos = () => {
 
             <Table
                 columns={columns}
-                dataSource={egresos.map((item, index) => ({ ...item, key: index }))}
+                dataSource={egresosFiltrados.map((item, index) => ({ ...item, key: index }))}
                 bordered
                 loading={loading}
                 pagination={{ pageSize: 9 }}
@@ -139,7 +212,7 @@ const ReporteEgresos = () => {
             <div className="mt-4 flex flex-col lg:flex-row justify-center items-center gap-3">
                 <div className="w-full bg-white shadow-md rounded-lg lg:w-1/2 p-3">
                     <h2 className="text-lg font-bold mb-3 text-center">📊 Egresos por Categoría</h2>
-                    <ResponsiveContainer width="100%" height={250}>
+                    <ResponsiveContainer width="100%" height={288}>
                         <PieChart>
                             <Pie data={egresosPorCategoria} dataKey="cantidad" nameKey="categoria" outerRadius={90} label>
                                 {egresosPorCategoria.map((entry) => (
@@ -152,9 +225,48 @@ const ReporteEgresos = () => {
                     </ResponsiveContainer>
                 </div>
 
+                <div className="w-full bg-white shadow-lg rounded-lg p-5 mt-4">
+                    <h2 className="text-lg font-bold text-center mb-3 flex items-center justify-center">
+                        ⚠️ Productos con Stock Crítico
+                    </h2>
+                    <Table
+                        columns={[
+                            {
+                                title: "Producto",
+                                dataIndex: "nombre",
+                                key: "nombre",
+                                className: "font-semibold text-gray-700 text-center",
+                            },
+                            {
+                                title: "Stock Actual",
+                                dataIndex: "stockActual",
+                                key: "stockActual",
+                                className: "text-center",
+                                render: (value, record) => (
+                                    <span className={value < record.stockMinimo ? "text-red-600 font-bold" : "text-yellow-600 font-semibold"}>
+                                        {value}
+                                    </span>
+                                ),
+                            },
+                            {
+                                title: "Stock Mínimo",
+                                dataIndex: "stockMinimo",
+                                key: "stockMinimo",
+                                className: "text-center font-semibold text-gray-600",
+                            }
+                        ]}
+                        dataSource={productosOrdenados.map((item, index) => ({ ...item, key: index }))}
+                        bordered
+                        pagination={false}
+                        className="shadow-md rounded-lg bg-white text-sm mt-2"
+                        size="middle"
+                    />
+                </div>
+
+
                 <div className="w-full bg-white shadow-md rounded-lg lg:w-1/2 p-3">
                     <h2 className="text-lg font-bold mb-3 text-center">💰 Costos de Egresos por Categoría</h2>
-                    <ResponsiveContainer width="100%" height={250}>
+                    <ResponsiveContainer width="100%" height={288}>
                         <PieChart>
                             <Pie
                                 data={costosPorCategoria}
@@ -173,6 +285,8 @@ const ReporteEgresos = () => {
                     </ResponsiveContainer>
                 </div>
             </div>
+
+
 
             {/* Estilos para la impresión */}
             <style>
