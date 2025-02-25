@@ -152,7 +152,7 @@ const ProductList = () => {
                                 dataIndex: 'stock_real',
                                 key: 'stock_real',
                                 render: (_, record) => {
-                                    const stock = record?.stock?.reduce((prev, cur) => prev + cur.cantidad, 0)
+                                    const stock = record?.stock?.reduce((prev, cur) => prev + parseFloat(cur.cantidad), 0)
                                     return <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
                                         {stock ?? 0}
                                     </span>
