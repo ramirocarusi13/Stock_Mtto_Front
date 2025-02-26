@@ -70,7 +70,7 @@ const MyMenu = () => {
                             { key: '5', label: <Link to="/pañol/inventario">Inventario</Link> },
                             { key: '6', label: <Link to="/pañol/prestamos">Préstamos</Link> },
                             { key: '7', label: <Link to="/pañol/salidas">Salidas</Link> },
-                            role === 'gerente' && { key: '8', label: <Link to="/pañol/pendientes">Pendientes</Link> },
+                            { key: '8', label: <Link to="/pañol/pendientes">Pendientes</Link> },
                             role === 'gerente' && { key: '9', label: <Link to="/pañol/costos">Costos</Link> },
                             role === 'gerente' && { key: '10', label: <Link to="/pañol/reporte">Reporte</Link> }, // Solo visible para gerentes
                              // Solo visible para gerentes

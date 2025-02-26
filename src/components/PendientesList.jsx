@@ -14,6 +14,9 @@ const PendientesList = () => {
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
+    const userData = JSON.parse(localStorage.getItem('user')) || {};
+    const role = userData.rol || 'Sin rol';
+
     useEffect(() => {
         const fetchMovimientosPendientes = async () => {
             setLoading(true);
@@ -27,14 +30,11 @@ const PendientesList = () => {
                     },
                 });
 
-
                 if (!movimientosResponse.ok) {
                     throw new Error('Error al obtener los movimientos pendientes');
                 }
 
                 const movimientosData = await movimientosResponse.json();
-                
-
 
                 // Obtener información del producto desde inventario para cada movimiento
                 const productosConDatos = await Promise.all(
@@ -73,7 +73,7 @@ const PendientesList = () => {
                                 cantidad_movimiento: movimiento.cantidad,
                                 tipo_movimiento: movimiento.motivo,
                                 existente: false,
-                                usuario: movimiento.usuario// Producto no encontrado en inventario
+                                usuario: movimiento.usuario // Producto no encontrado en inventario
                             };
                         }
                     })
@@ -100,6 +100,76 @@ const PendientesList = () => {
         setProductosPendientes(prev => prev.filter(p => p.codigo !== codigoProducto));
     };
 
+    // Definir las columnas de la tabla
+    const columns = [
+        {
+            title: 'Código',
+            dataIndex: 'codigo',
+            key: 'codigo',
+        },
+        {
+            title: 'Producto',
+            dataIndex: 'descripcion',
+            key: 'descripcion',
+        },
+        {
+            title: 'Cantidad',
+            dataIndex: 'cantidad_movimiento',
+            key: 'cantidad_movimiento',
+            render: (cantidad) => cantidad ?? 0,
+        },
+        {
+            title: 'Tipo de Movimiento',
+            dataIndex: 'tipo_movimiento',
+            key: 'tipo_movimiento',
+            render: (tipo) => (
+                <Tag color={tipo === 'ingreso' ? 'green' : tipo === 'egreso' ? 'red' : 'blue'}>
+                    {tipo}
+                </Tag>
+            ),
+        },
+        {
+            title: 'Estado del Producto',
+            dataIndex: 'existente',
+            key: 'existente',
+            render: (esExistente) => (
+                <div>
+                    <Tag color={esExistente ? 'cyan' : 'gold'}>
+                        {esExistente ? 'Stock Existente' : 'Nuevo Producto'}
+                    </Tag>
+                    {esExistente && (
+                        <Tag color="blue" style={{ marginLeft: '5px' }}>
+                            Suma de Cantidad
+                        </Tag>
+                    )}
+                </div>
+            ),
+        },
+        {
+            title: 'Usuario creador',
+            dataIndex: 'usuario_nombre',
+            key: 'usuario_nombre',
+            render: (_, r) => <Tag color="purple">{r.usuario?.name}</Tag>,
+        },
+    ];
+
+    // Agregar la columna de "Acciones" solo si el rol es "gerente"
+    if (role === 'gerente') {
+        columns.push({
+            title: 'Acciones',
+            key: 'acciones',
+            render: (_, record) => (
+                <Button
+                    icon={<CheckOutlined />}
+                    onClick={() => handleApproveClick(record)}
+                    type="primary"
+                >
+                    Aprobar
+                </Button>
+            ),
+        });
+    }
+
     return (
         <div style={{ display: 'flex', minHeight: '100vh' }}>
             <MyMenu />
@@ -107,76 +177,12 @@ const PendientesList = () => {
             <div style={{ flex: 1, padding: '20px' }}>
                 <Title level={2} style={{ textAlign: 'center' }}>Pendientes</Title>
                 <Table
-                    columns={[
-                        {
-                            title: 'Código',
-                            dataIndex: 'codigo',
-                            key: 'codigo',
-                        },
-                        {
-                            title: 'Producto',
-                            dataIndex: 'descripcion',
-                            key: 'descripcion',
-                        },
-                        {
-                            title: 'Cantidad',
-                            dataIndex: 'cantidad_movimiento',
-                            key: 'cantidad_movimiento',
-                            render: (cantidad) => cantidad ?? 0,
-                        },
-                        {
-                            title: 'Tipo de Movimiento',
-                            dataIndex: 'tipo_movimiento',
-                            key: 'tipo_movimiento',
-                            render: (tipo) => (
-                                <Tag color={tipo === 'ingreso' ? 'green' : tipo === 'egreso' ? 'red' : 'blue'}>
-                                    {tipo}
-                                </Tag>
-                            ),
-                        },
-                        {
-                            title: 'Estado del Producto',
-                            dataIndex: 'existente',
-                            key: 'existente',
-                            render: (esExistente) => (
-                                <div>
-                                    <Tag color={esExistente ? 'cyan' : 'gold'}>
-                                        {esExistente ? 'Stock Existente' : 'Nuevo Producto'}
-                                    </Tag>
-                                    {esExistente && (
-                                        <Tag color="blue" style={{ marginLeft: '5px' }}>
-                                            Suma de Cantidad
-                                        </Tag>
-                                    )}
-                                </div>
-                            ),
-                        },
-                        {
-                            title: 'Usuario creador',
-                            dataIndex: 'usuario_nombre',
-                            key: 'usuario_nombre',
-                            render: (_, r) => <Tag color="purple">{r.usuario?.name}</Tag>,
-                        },
-                        {
-                            title: 'Acciones',
-                            key: 'acciones',
-                            render: (_, record) => (
-                                <Button
-                                    icon={<CheckOutlined />}
-                                    onClick={() => handleApproveClick(record)}
-                                    type="primary"
-                                >
-                                    Aprobar
-                                </Button>
-                            ),
-                        },
-                    ]}
+                    columns={columns} // Usar las columnas definidas
                     dataSource={productosPendientes}
                     rowKey={(record) => `${record.codigo}-${record.tipo_movimiento}-${record.cantidad_movimiento}-${Math.random()}`} // Clave única
                     bordered
                     loading={loading}
                 />
-
             </div>
 
             <ModalAprobarProducto
