@@ -11,7 +11,7 @@ export default function Home() {
         <>
             <div className='pl-5'></div>
             <MyMenu />
-            <ProductList />
+            
 
         </>
     )
