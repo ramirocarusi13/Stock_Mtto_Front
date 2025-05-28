@@ -19,10 +19,6 @@ const ProductList = () => {
     const [currentProduct, setCurrentProduct] = useState(null);
     const [movimientoSeleccionado, setMovimientoSeleccionado] = useState(null);
     const [searchText, setSearchText] = useState('');
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalItems, setTotalItems] = useState(0);
-    const perPage = 50;
-
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
@@ -30,10 +26,10 @@ const ProductList = () => {
         fetchProductos();
     }, []);
 
-    const fetchProductos = async (page = 1) => {
+    const fetchProductos = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${VITE_APIURL}inventario?page=${page}&per_page=${perPage}`, {
+            const response = await fetch(`${VITE_APIURL}inventario`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -41,13 +37,31 @@ const ProductList = () => {
             });
 
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message || 'Error al obtener los productos');
+            if (!response.ok) {
+                throw new Error(data.message || 'Error al obtener los productos');
+            }
 
-            const productos = data.data; // Paginados
-            setProductos(productos);
-            setFilteredProductos(productos);
-            setTotalItems(data.total); // Total de registros
-            setCurrentPage(data.current_page);
+            const productosAprobados = data.data.filter(product => product.estado === 'aprobado');
+
+            // const productosConStock = await Promise.all(
+                // productosAprobados.map(async (product) => {
+                //     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
+                //         method: 'GET',
+                //         headers: {
+                //             'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                //         },
+                //     });
+
+                //     const stockData = await stockResponse.json();
+                //     return {
+                //         ...product,
+                //         stock_real: stockData.stock_real || 0,
+                //     };
+                // })
+            // );
+
+            setProductos(productosAprobados);
+            setFilteredProductos(productosAprobados);
         } catch (error) {
             console.error('Error al obtener los productos:', error);
             message.error('Error al obtener los productos');
@@ -55,11 +69,6 @@ const ProductList = () => {
             setLoading(false);
         }
     };
-    const handlePageChange = (page) => {
-        fetchProductos(page);
-    };
-
-
 
     const handleSearchChange = (e) => {
         const value = e.target.value.toLowerCase();
@@ -170,14 +179,7 @@ const ProductList = () => {
                         loading={loading}
                         className="rounded-lg shadow-sm"
                         rowClassName="hover:bg-gray-50 transition duration-200"
-                        pagination={{
-                            current: currentPage,
-                            total: totalItems,
-                            pageSize: perPage,
-                            onChange: handlePageChange,
-                        }}
                     />
-
                 </Card>
 
             </div>
