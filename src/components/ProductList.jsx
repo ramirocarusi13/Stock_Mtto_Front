@@ -44,20 +44,20 @@ const ProductList = () => {
             const productosAprobados = data.data.filter(product => product.estado === 'aprobado');
 
             // const productosConStock = await Promise.all(
-                // productosAprobados.map(async (product) => {
-                //     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
-                //         method: 'GET',
-                //         headers: {
-                //             'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                //         },
-                //     });
+            // productosAprobados.map(async (product) => {
+            //     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
+            //         method: 'GET',
+            //         headers: {
+            //             'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            //         },
+            //     });
 
-                //     const stockData = await stockResponse.json();
-                //     return {
-                //         ...product,
-                //         stock_real: stockData.stock_real || 0,
-                //     };
-                // })
+            //     const stockData = await stockResponse.json();
+            //     return {
+            //         ...product,
+            //         stock_real: stockData.stock_real || 0,
+            //     };
+            // })
             // );
 
             setProductos(productosAprobados);
@@ -129,6 +129,13 @@ const ProductList = () => {
                     </div>
 
                     <Table
+                        pagination={{
+                            pageSize: 50,            // cantidad por página
+                            showSizeChanger: true,   // permite cambiar cantidad por página
+                            pageSizeOptions: ['10', '25', '50', '100'],
+                            showTotal: (total) => `Total de productos: ${total}`,
+                        }}
+
                         columns={[
                             {
                                 title: 'Código',
@@ -151,13 +158,13 @@ const ProductList = () => {
                                 title: 'Stock Real',
                                 dataIndex: 'stock_real',
                                 key: 'stock_real',
-                                render: (_, record) => {
-                                    const stock = record?.stock?.reduce((prev, cur) => prev + parseFloat(cur.cantidad), 0)
-                                    return <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
+                                render: (stock) => (
+                                    <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
                                         {stock ?? 0}
                                     </span>
-                                },
+                                ),
                             },
+
                             {
                                 title: 'Acciones',
                                 key: 'acciones',
