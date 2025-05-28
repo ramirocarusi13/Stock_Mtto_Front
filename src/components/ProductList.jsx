@@ -19,37 +19,49 @@ const ProductList = () => {
     const [currentProduct, setCurrentProduct] = useState(null);
     const [movimientoSeleccionado, setMovimientoSeleccionado] = useState(null);
     const [searchText, setSearchText] = useState('');
-    const [pagination, setPagination] = useState({
-        current: 1,
-        pageSize: 50,
-        total: 0,
-    });
-
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
     useEffect(() => {
-        fetchProductos(pagination.current, pagination.pageSize);
+        fetchProductos();
     }, []);
 
-
-    const fetchProductos = async (page = 1, pageSize = 50) => {
+    const fetchProductos = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`${VITE_APIURL}inventario?page=${page}&per_page=${pageSize}`, {
+            const response = await fetch(`${VITE_APIURL}inventario`, {
+                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                 },
             });
-            const data = await response.json();
 
-            setProductos(data.data);
-            setFilteredProductos(data.data);
-            setPagination({
-                current: data.current_page,
-                pageSize: data.per_page,
-                total: data.total,
-            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.message || 'Error al obtener los productos');
+            }
+
+            const productosAprobados = data.data.filter(product => product.estado === 'aprobado');
+
+            // const productosConStock = await Promise.all(
+                // productosAprobados.map(async (product) => {
+                //     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
+                //         method: 'GET',
+                //         headers: {
+                //             'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                //         },
+                //     });
+
+                //     const stockData = await stockResponse.json();
+                //     return {
+                //         ...product,
+                //         stock_real: stockData.stock_real || 0,
+                //     };
+                // })
+            // );
+
+            setProductos(productosAprobados);
+            setFilteredProductos(productosAprobados);
         } catch (error) {
             console.error('Error al obtener los productos:', error);
             message.error('Error al obtener los productos');
@@ -117,8 +129,6 @@ const ProductList = () => {
                     </div>
 
                     <Table
-
-
                         columns={[
                             {
                                 title: 'Código',
@@ -141,13 +151,13 @@ const ProductList = () => {
                                 title: 'Stock Real',
                                 dataIndex: 'stock_real',
                                 key: 'stock_real',
-                                render: (stock) => (
-                                    <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
+                                render: (_, record) => {
+                                    const stock = record?.stock?.reduce((prev, cur) => prev + parseFloat(cur.cantidad), 0)
+                                    return <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
                                         {stock ?? 0}
                                     </span>
-                                ),
+                                },
                             },
-
                             {
                                 title: 'Acciones',
                                 key: 'acciones',
@@ -169,15 +179,6 @@ const ProductList = () => {
                         loading={loading}
                         className="rounded-lg shadow-sm"
                         rowClassName="hover:bg-gray-50 transition duration-200"
-                        pagination={{
-                            current: pagination.current,
-                            pageSize: pagination.pageSize,
-                            total: pagination.total,
-                            showSizeChanger: true,
-                            onChange: (page, pageSize) => fetchProductos(page, pageSize),
-                            showTotal: (total) => `Total de productos: ${total}`,
-                        }}
-
                     />
                 </Card>
 
