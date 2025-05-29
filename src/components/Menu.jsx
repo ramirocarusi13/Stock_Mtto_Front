@@ -31,10 +31,10 @@ const MyMenu = () => {
             }}
         >
             {/* 🔹 Logo en la parte superior */}
-            <div 
+            <div
                 style={{
                     width: '100%',
-                    height: 64, 
+                    height: 64,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -43,11 +43,11 @@ const MyMenu = () => {
                     transition: 'all 0.3s ease-in-out',
                 }}
             >
-                <img 
+                <img
                     src="/LOGO.png"
                     alt="Logo"
                     style={{
-                        width: collapsed ? 60 : 220, 
+                        width: collapsed ? 60 : 220,
                         height: 'auto',
                         transition: 'width 0.3s',
                     }}
@@ -71,11 +71,13 @@ const MyMenu = () => {
                             { key: '6', label: <Link to="/pañol/prestamos">Préstamos</Link> },
                             { key: '7', label: <Link to="/pañol/salidas">Salidas</Link> },
                             { key: '8', label: <Link to="/pañol/pendientes">Pendientes</Link> },
+                            { key: '11', label: <Link to="/pañol/criticos">Críticos</Link> },
+                            { key: '12', label: <Link to="/pañol/punto-de-pedido">Punto de Pedido</Link> },
+
                             role === 'gerente' && { key: '9', label: <Link to="/pañol/costos">Costos</Link> },
-                            role === 'gerente' && { key: '10', label: <Link to="/pañol/reporte">Reporte</Link> }, // Solo visible para gerentes
-                             // Solo visible para gerentes
-                             // Solo visible para gerentes
-                        ].filter(Boolean), // Filtra elementos nulos (si el usuario no es gerente, no se añade "Pendientes")
+                            role === 'gerente' && { key: '10', label: <Link to="/pañol/reporte">Reporte</Link> },
+                        ].filter(Boolean)
+                        // Filtra elementos nulos (si el usuario no es gerente, no se añade "Pendientes")
                     },
                 ]}
                 style={{ flex: 1 }}

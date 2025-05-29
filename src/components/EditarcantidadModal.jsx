@@ -1,31 +1,35 @@
-import React, { useState } from 'react';
-import { Modal, InputNumber, Button, message } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Modal, InputNumber, Button, message, Form } from 'antd';
 
-const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
-    const [nuevaCantidad, setNuevaCantidad] = useState(movimiento?.cantidad || 1);
+const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL, onCantidadUpdated }) => {
     const [loading, setLoading] = useState(false);
+    const [form] = Form.useForm();
 
-    const handleCreateMovimiento = async () => {
-        if (nuevaCantidad < 1) {
-            message.error("La cantidad debe ser mayor a 0.");
-            return;
+    useEffect(() => {
+        if (movimiento) {
+            form.setFieldsValue({
+                cantidad: movimiento.stock_real ?? 1,
+                punto_de_pedido: movimiento.punto_de_pedido ?? 0,
+                minimo: movimiento.minimo ?? 0,
+                maximo: movimiento.maximo ?? 0,
+            });
         }
+    }, [movimiento, form]);
 
-        setLoading(true);
-
+    const handleSubmit = async () => {
         try {
-            
+            const values = await form.validateFields();
+            const { cantidad, punto_de_pedido, minimo, maximo } = values;
 
+            // 1. Registrar movimiento (como ingreso pendiente)
             const nuevoMovimiento = {
-                codigo_producto: movimiento?.codigo_producto || movimiento?.codigo, // 🔹 Aseguramos el código correcto
-                cantidad: nuevaCantidad,
-                motivo: 'ingreso', // Se puede cambiar según la lógica del negocio
-                estado: 'pendiente', // 🔹 Se asegura que el movimiento quede pendiente
+                codigo_producto: movimiento?.codigo_producto || movimiento?.codigo,
+                cantidad: cantidad,
+                motivo: 'ingreso',
+                estado: 'pendiente',
             };
 
-            
-
-            const response = await fetch(`${VITE_APIURL}movimientos`, {
+            await fetch(`${VITE_APIURL}movimientos`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -34,18 +38,26 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
                 body: JSON.stringify(nuevoMovimiento),
             });
 
-            const data = await response.json();
-            
+            // 2. Actualizar punto de pedido, mínimo y máximo en producto
+            await fetch(`${VITE_APIURL}inventario/${movimiento.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    punto_de_pedido,
+                    minimo,
+                    maximo,
+                }),
+            });
 
-            if (!response.ok) {
-                throw new Error(data.message || 'Error al crear el nuevo movimiento');
-            }
-
-            message.success('Nuevo movimiento creado con éxito, pendiente de aprobación');
+            message.success('Cantidad y configuración actualizadas');
+            onCantidadUpdated(movimiento.codigo, cantidad);
             onClose();
         } catch (error) {
-            console.error('Error:', error);
-            message.error(error.message || 'Error al crear el nuevo movimiento');
+            console.error(error);
+            message.error(error.message || 'Error al guardar');
         } finally {
             setLoading(false);
         }
@@ -53,7 +65,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
 
     return (
         <Modal
-            title="Crear Nuevo Movimiento"
+            title="Editar Cantidad y Configuración"
             open={visible}
             onCancel={onClose}
             footer={[
@@ -63,7 +75,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
                 <Button
                     key="save"
                     type="primary"
-                    onClick={handleCreateMovimiento}
+                    onClick={handleSubmit}
                     loading={loading}
                     style={{ backgroundColor: '#1677ff', borderColor: '#1677ff' }}
                 >
@@ -71,13 +83,37 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL }) => {
                 </Button>,
             ]}
         >
-            <p>Ingrese la nueva cantidad para generar un nuevo movimiento:</p>
-            <InputNumber
-                min={1}
-                value={nuevaCantidad}
-                onChange={setNuevaCantidad}
-                style={{ width: '100%', marginTop: '10px', padding: '10px', fontSize: '16px' }}
-            />
+            <Form form={form} layout="vertical">
+                <Form.Item
+                    label="Nueva Cantidad (opcional)"
+                    name="cantidad"
+                >
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
+
+
+
+                <Form.Item
+                    label="Punto de Pedido"
+                    name="punto_de_pedido"
+                >
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
+
+                <Form.Item
+                    label="Stock Mínimo"
+                    name="minimo"
+                >
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
+
+                <Form.Item
+                    label="Stock Máximo"
+                    name="maximo"
+                >
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
+            </Form>
         </Modal>
     );
 };

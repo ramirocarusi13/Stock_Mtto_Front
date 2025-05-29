@@ -154,7 +154,7 @@ const PendientesList = () => {
     ];
 
     // Agregar la columna de "Acciones" solo si el rol es "gerente"
-    if (role === 'gerente') {
+    if (role === 'gerente' || role === 'group_leader') {
         columns.push({
             title: 'Acciones',
             key: 'acciones',
@@ -169,6 +169,7 @@ const PendientesList = () => {
             ),
         });
     }
+
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh' }}>

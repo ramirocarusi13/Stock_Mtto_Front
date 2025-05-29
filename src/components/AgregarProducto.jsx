@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, AutoComplete, Select, Input, InputNumber, Button, message } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Modal, Form, Select, Input, InputNumber, Button, message } from 'antd';
 
 const { Option } = Select;
 
@@ -7,9 +7,6 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
     const [form] = Form.useForm();
     const [proveedores, setProveedores] = useState([]);
     const [categorias, setCategorias] = useState([]);
-    const [productos, setProductos] = useState([]); // Lista de productos existentes
-    const [filteredProductos, setFilteredProductos] = useState([]); // Productos filtrados en tiempo real
-    const [productoExistente, setProductoExistente] = useState(null); // Producto ya creado
     const [loading, setLoading] = useState(false);
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
@@ -18,9 +15,7 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
         if (visible) {
             fetchProveedores();
             fetchCategorias();
-            fetchProductos();
             form.resetFields();
-            setProductoExistente(null);
         }
     }, [visible]);
 
@@ -29,10 +24,8 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
             const response = await fetch(`${VITE_APIURL}categorias`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
             });
-            if (!response.ok) throw new Error('Error al obtener las categorías');
             const data = await response.json();
-            
-            setCategorias(data);
+            setCategorias(Array.isArray(data) ? data : data.data || []);
         } catch (error) {
             console.error('Error al cargar categorías:', error);
             message.error('No se pudieron cargar las categorías');
@@ -44,64 +37,18 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
             const response = await fetch(`${VITE_APIURL}proveedores`, {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
             });
-            if (!response.ok) throw new Error('Error al obtener los proveedores');
             const data = await response.json();
-            /* console.log("Proveedores obtenidos:", data); */
-            setProveedores(data);
+            setProveedores(Array.isArray(data) ? data : data.data || []);
         } catch (error) {
             console.error('Error al cargar proveedores:', error);
             message.error('No se pudieron cargar los proveedores');
         }
     };
 
-    const fetchProductos = async () => {
-        try {
-            const response = await fetch(`${VITE_APIURL}inventario`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
-            });
-            if (!response.ok) throw new Error('Error al obtener los productos');
-            const data = await response.json();
-            /* console.log("Productos obtenidos:", data); */
-            setProductos(data.data);
-        } catch (error) {
-            console.error('Error al cargar productos:', error);
-            message.error('No se pudieron cargar los productos');
-        }
-    };
-
-    const handleCodigoChange = (value) => {
-        const filtered = productos
-            .filter((producto) => producto.codigo.toLowerCase().includes(value.toLowerCase()))
-            .map((producto) => ({
-                value: producto.codigo,
-                label: `${producto.codigo} - ${producto.descripcion}`,
-            }));
-        /* console.log("Filtrado de productos para código:", filtered); */
-        setFilteredProductos(filtered);
-    };
-
-    // Cada vez que cambie el valor del campo "Código", se verifica si el producto ya existe
-    const handleValuesChange = (changedValues, allValues) => {
-        if (changedValues.codigo !== undefined) {
-            const codigo = changedValues.codigo;
-            const prod = productos.find(
-                (p) => p.codigo.toLowerCase() === codigo.toLowerCase()
-            );
-            
-            setProductoExistente(prod || null);
-        }
-    };
-
     const handleFinish = async (values) => {
-        /* console.log("Valores del formulario antes de enviar:", values); */
         setLoading(true);
         try {
-            // Si el producto ya existe, eliminamos los campos mínimo y máximo del payload
-            if (productoExistente) {
-                delete values.minimo;
-                delete values.maximo;
-                /* console.log("Producto existente. Se eliminan los campos mínimo y máximo."); */
-            }
+            // 1. Crear el producto
             const response = await fetch(`${VITE_APIURL}inventario`, {
                 method: 'POST',
                 headers: {
@@ -110,15 +57,30 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                 },
                 body: JSON.stringify(values),
             });
+
             const data = await response.json();
-            /* console.log("Respuesta del servidor:", data); */
-            if (!response.ok) {
-                throw new Error(data.message || 'Error al agregar el producto');
+            if (!response.ok) throw new Error(data.message || 'Error al agregar el producto');
+
+            // 2. Crear el movimiento de ingreso solo si hay cantidad
+            if (values.en_stock > 0) {
+                await fetch(`${VITE_APIURL}movimientos`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        codigo_producto: values.codigo,
+                        cantidad: values.en_stock,
+                        motivo: 'ingreso',
+                        estado: 'aprobado', // o "pendiente" según tu lógica
+                    }),
+                });
             }
-            message.success('Producto agregado con éxito');
-            if (onProductAdded) {
-                onProductAdded(data.producto);
-            }
+
+            message.success('Producto y movimiento creados con éxito');
+
+            if (onProductAdded) onProductAdded(data.producto);
             form.resetFields();
             onClose();
         } catch (error) {
@@ -129,9 +91,10 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
         }
     };
 
+
     return (
         <Modal
-            visible={visible}
+            open={visible}
             title="Agregar Producto"
             onCancel={() => {
                 form.resetFields();
@@ -143,7 +106,6 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                 form={form}
                 layout="vertical"
                 onFinish={handleFinish}
-                onValuesChange={handleValuesChange}
                 initialValues={{
                     codigo: '',
                     descripcion: '',
@@ -154,18 +116,12 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                     maximo: 0,
                 }}
             >
-                {/* Campo Código con AutoComplete */}
                 <Form.Item
                     label="Código"
                     name="codigo"
                     rules={[{ required: true, message: 'El código es obligatorio' }]}
                 >
-                    <AutoComplete
-                        options={filteredProductos}
-                        onSearch={handleCodigoChange}
-                        placeholder="Ingresa el código del producto"
-                        style={{ width: '100%' }}
-                    />
+                    <Input placeholder="Ingresa el código del producto" />
                 </Form.Item>
 
                 <Form.Item
@@ -181,8 +137,14 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                     name="proveedor_id"
                     rules={[{ required: true, message: 'Por favor selecciona un proveedor' }]}
                 >
-                    <Select placeholder="Selecciona un proveedor">
-                        {proveedores.map((proveedor) => (
+                    <Select
+                        showSearch
+                        placeholder="Selecciona un proveedor"
+                        filterOption={(input, option) =>
+                            option?.children?.toLowerCase().includes(input.toLowerCase())
+                        }
+                    >
+                        {Array.isArray(proveedores) && proveedores.map((proveedor) => (
                             <Option key={proveedor.id} value={proveedor.id}>
                                 {proveedor.nombre}
                             </Option>
@@ -195,8 +157,14 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                     name="categoria_id"
                     rules={[{ required: true, message: 'Por favor selecciona una categoría' }]}
                 >
-                    <Select placeholder="Selecciona una categoría">
-                        {categorias.map((categoria) => (
+                    <Select
+                        showSearch
+                        placeholder="Selecciona una categoría"
+                        filterOption={(input, option) =>
+                            option?.children?.toLowerCase().includes(input.toLowerCase())
+                        }
+                    >
+                        {Array.isArray(categorias) && categorias.map((categoria) => (
                             <Option key={categoria.id} value={categoria.id}>
                                 {categoria.nombre}
                             </Option>
@@ -209,17 +177,43 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                     name="en_stock"
                     rules={[{ required: true, message: 'El stock inicial es obligatorio' }]}
                 >
-                    <InputNumber min={0} placeholder="Cantidad inicial en stock" style={{ width: '100%' }} />
+                    <InputNumber min={0} placeholder="Cantidad inicial en stock" className="w-full" />
                 </Form.Item>
 
-                
+                <Form.Item
+                    label="Punto de Pedido"
+                    name="punto_de_pedido"
+                >
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
 
+                <Form.Item
+                    label="Stock Mínimo"
+                    name="minimo"
+                >
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
+
+                <Form.Item
+                    label="Stock Máximo"
+                    name="maximo"
+                >
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
                 <Form.Item>
-                    <Button type="primary" htmlType="submit" loading={loading} block>
-                        Agregar Producto
-                    </Button>
-                </Form.Item>
+                <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={loading}
+                    block
+                >
+                    Agregar Producto
+                </Button>
+            </Form.Item>
+
             </Form>
+            
+
         </Modal>
     );
 };

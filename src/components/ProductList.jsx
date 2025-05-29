@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Typography, Card, Button, message, Input } from 'antd';
+import { Table, Typography, Card, Button, message, Input ,Spin , Tag} from 'antd';
 import { EditOutlined, CheckOutlined, PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import AgregarProductoModal from './AgregarProducto';
 import ModalAprobarProducto from './ModalAprobarProducto';
 import ModalModificarProducto from './ModalModificarProducto';
 import EditarcantidadModal from './EditarcantidadModal';
+
+ 
 
 const { Title } = Typography;
 
@@ -19,6 +21,8 @@ const ProductList = () => {
     const [currentProduct, setCurrentProduct] = useState(null);
     const [movimientoSeleccionado, setMovimientoSeleccionado] = useState(null);
     const [searchText, setSearchText] = useState('');
+    const [searchLoading, setSearchLoading] = useState(false);
+
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
@@ -44,24 +48,25 @@ const ProductList = () => {
             const productosAprobados = data.data.filter(product => product.estado === 'aprobado');
 
             // const productosConStock = await Promise.all(
-                // productosAprobados.map(async (product) => {
-                //     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
-                //         method: 'GET',
-                //         headers: {
-                //             'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                //         },
-                //     });
+            // productosAprobados.map(async (product) => {
+            //     const stockResponse = await fetch(`${VITE_APIURL}inventario/${product.codigo}`, {
+            //         method: 'GET',
+            //         headers: {
+            //             'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            //         },
+            //     });
 
-                //     const stockData = await stockResponse.json();
-                //     return {
-                //         ...product,
-                //         stock_real: stockData.stock_real || 0,
-                //     };
-                // })
+            //     const stockData = await stockResponse.json();
+            //     return {
+            //         ...product,
+            //         stock_real: stockData.stock_real || 0,
+            //     };
+            // })
             // );
 
             setProductos(productosAprobados);
             setFilteredProductos(productosAprobados);
+
         } catch (error) {
             console.error('Error al obtener los productos:', error);
             message.error('Error al obtener los productos');
@@ -70,18 +75,28 @@ const ProductList = () => {
         }
     };
 
-    const handleSearchChange = (e) => {
-        const value = e.target.value.toLowerCase();
+    const handleSearchChange = async (e) => {
+        const value = e.target.value;
         setSearchText(value);
+        setSearchLoading(true); // Activar solo el spinner del input
 
-        const filtered = productos.filter((product) =>
-            product.codigo.toLowerCase().includes(value) ||
-            product.descripcion.toLowerCase().includes(value) ||
-            (product.proveedor && product.proveedor.nombre.toLowerCase().includes(value))
-        );
+        try {
+            const response = await fetch(`${VITE_APIURL}inventario?search=${encodeURIComponent(value)}`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
 
-        setFilteredProductos(filtered);
+            const data = await response.json();
+            setFilteredProductos(data.data || []);
+        } catch (error) {
+            message.error('Error al buscar productos');
+        } finally {
+            setSearchLoading(false); // Detener el spinner del input
+        }
     };
+
+
 
     const handleEditCantidad = (producto) => {
         setMovimientoSeleccionado(producto);
@@ -104,7 +119,7 @@ const ProductList = () => {
     return (
         <div className="min-h-screen p-6">
             <div className="max-w-7xl mx-auto">
-                <Card className="shadow-lg rounded-lg">
+                
                     <Title level={2} className="text-center text-blue-600 mb-6">
                         Productos
                     </Title>
@@ -122,10 +137,14 @@ const ProductList = () => {
                         <Input
                             placeholder="Buscar por código, nombre o proveedor..."
                             prefix={<SearchOutlined className="text-gray-400" />}
+                            suffix={searchLoading && <Spin size="small" />}
                             value={searchText}
-                            onChange={handleSearchChange}
+                            onChange={(e) => setSearchText(e.target.value)}
+                            onPressEnter={handleSearchChange}
                             className="w-96 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                         />
+
+
                     </div>
 
                     <Table
@@ -134,29 +153,57 @@ const ProductList = () => {
                                 title: 'Código',
                                 dataIndex: 'codigo',
                                 key: 'codigo',
-                                className: 'font-semibold',
+                                render: (codigo) => (
+                                    <Tag color="volcano" className="font-mono text-sm">{codigo}</Tag>
+                                ),
                             },
                             {
                                 title: 'Producto',
                                 dataIndex: 'descripcion',
                                 key: 'descripcion',
+                                render: (descripcion) => (
+                                    <Tag color="purple" className="text-xs">{descripcion}</Tag>
+                                ),
                             },
                             {
                                 title: 'Proveedor',
                                 dataIndex: 'proveedor',
                                 key: 'proveedor',
-                                render: (_, record) => record?.proveedor?.nombre || 'N/A',
+                                render: (_, record) => (
+                                    <Tag color="geekblue">{record?.proveedor?.nombre || 'N/A'}</Tag>
+                                ),
                             },
                             {
                                 title: 'Stock Real',
                                 dataIndex: 'stock_real',
                                 key: 'stock_real',
                                 render: (_, record) => {
-                                    const stock = record?.stock?.reduce((prev, cur) => prev + parseFloat(cur.cantidad), 0)
-                                    return <span className={stock < 0 ? 'text-red-500' : 'text-green-600'}>
-                                        {stock ?? 0}
-                                    </span>
+                                    const stock = record?.stock?.reduce((prev, cur) => prev + parseFloat(cur.cantidad), 0);
+                                    const isLow = stock < (record.punto_de_pedido ?? 0);
+                                    return (
+                                        <Tag color={isLow ? 'red' : 'green'}>
+                                            {stock ?? 0}
+                                        </Tag>
+                                    );
                                 },
+                            },
+                            {
+                                title: 'Punto de Pedido',
+                                dataIndex: 'punto_de_pedido',
+                                key: 'punto_de_pedido',
+                                render: (value) => <Tag color="orange">{value ?? 0}</Tag>,
+                            },
+                            {
+                                title: 'Mínimo',
+                                dataIndex: 'minimo',
+                                key: 'minimo',
+                                render: (value) => <Tag color="red">{value ?? 0}</Tag>,
+                            },
+                            {
+                                title: 'Máximo',
+                                dataIndex: 'maximo',
+                                key: 'maximo',
+                                render: (value) => <Tag color="blue">{value ?? 0}</Tag>,
                             },
                             {
                                 title: 'Acciones',
@@ -173,14 +220,19 @@ const ProductList = () => {
                                 ),
                             },
                         ]}
+
+                        bordered
+                        size="middle"
+                        pagination={{ pageSize: 15 ,
+                            showSizeChanger: false,
+                        }}
+                        className="shadow-lg bg-white rounded-lg"
+                        rowClassName="hover:bg-blue-50 transition-colors duration-200 text-sm"
                         dataSource={filteredProductos}
                         rowKey="codigo"
-                        bordered
                         loading={loading}
-                        className="rounded-lg shadow-sm"
-                        rowClassName="hover:bg-gray-50 transition duration-200"
                     />
-                </Card>
+                
 
             </div>
             <AgregarProductoModal
