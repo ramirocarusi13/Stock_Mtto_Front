@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, InputNumber, Button, message, Form } from 'antd';
 
-const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL, onCantidadUpdated }) => {
+const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }) => {
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
+    const VITE_APIURL = import.meta.env.VITE_APIURL; 
 
     useEffect(() => {
         if (movimiento) {
@@ -17,29 +18,31 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL, onCant
     }, [movimiento, form]);
 
     const handleSubmit = async () => {
+        setLoading(true);
         try {
             const values = await form.validateFields();
             const { cantidad, punto_de_pedido, minimo, maximo } = values;
 
-            // 1. Registrar movimiento (como ingreso pendiente)
-            const nuevoMovimiento = {
-                codigo_producto: movimiento?.codigo_producto || movimiento?.codigo,
-                cantidad: cantidad,
-                motivo: 'ingreso',
-                estado: 'pendiente',
-            };
-
-            await fetch(`${VITE_APIURL}movimientos`, {
+            // 1. Registrar nuevo movimiento (ingreso pendiente)
+            const responseMovimiento = await fetch(`${VITE_APIURL}movimientos`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(nuevoMovimiento),
+                body: JSON.stringify({
+                    codigo_producto: movimiento?.codigo_producto || movimiento?.codigo,
+                    cantidad: cantidad,
+                    motivo: 'ingreso',
+                    estado: 'pendiente',
+                }),
             });
 
-            // 2. Actualizar punto de pedido, mínimo y máximo en producto
-            await fetch(`${VITE_APIURL}inventario/${movimiento.id}`, {
+            const dataMovimiento = await responseMovimiento.json();
+            if (!responseMovimiento.ok) throw new Error(dataMovimiento.message || 'Error al registrar el movimiento');
+
+            // 2. Actualizar valores del inventario
+            const responseInventario = await fetch(`${VITE_APIURL}inventario/${movimiento.id}`, {
                 method: 'PUT',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -52,12 +55,15 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL, onCant
                 }),
             });
 
+            const dataInventario = await responseInventario.json();
+            if (!responseInventario.ok) throw new Error(dataInventario.message || 'Error al actualizar el producto');
+
             message.success('Cantidad y configuración actualizadas');
-            onCantidadUpdated(movimiento.codigo, cantidad);
+            if (onCantidadUpdated) onCantidadUpdated(movimiento.codigo, cantidad);
             onClose();
         } catch (error) {
-            console.error(error);
-            message.error(error.message || 'Error al guardar');
+            console.error('Error:', error);
+            message.error(error.message || 'Error al guardar los cambios');
         } finally {
             setLoading(false);
         }
@@ -84,33 +90,16 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, VITE_APIURL, onCant
             ]}
         >
             <Form form={form} layout="vertical">
-                <Form.Item
-                    label="Nueva Cantidad (opcional)"
-                    name="cantidad"
-                >
+                <Form.Item label="Nueva Cantidad (opcional)" name="cantidad">
                     <InputNumber min={0} className="w-full" />
                 </Form.Item>
-
-
-
-                <Form.Item
-                    label="Punto de Pedido"
-                    name="punto_de_pedido"
-                >
+                <Form.Item label="Punto de Pedido" name="punto_de_pedido">
                     <InputNumber min={0} className="w-full" />
                 </Form.Item>
-
-                <Form.Item
-                    label="Stock Mínimo"
-                    name="minimo"
-                >
+                <Form.Item label="Stock Mínimo" name="minimo">
                     <InputNumber min={0} className="w-full" />
                 </Form.Item>
-
-                <Form.Item
-                    label="Stock Máximo"
-                    name="maximo"
-                >
+                <Form.Item label="Stock Máximo" name="maximo">
                     <InputNumber min={0} className="w-full" />
                 </Form.Item>
             </Form>
