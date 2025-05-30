@@ -4,7 +4,12 @@ import { Modal, InputNumber, Button, message, Form } from 'antd';
 const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }) => {
     const [loading, setLoading] = useState(false);
     const [form] = Form.useForm();
-    const VITE_APIURL = import.meta.env.VITE_APIURL; 
+    const VITE_APIURL = import.meta.env.VITE_APIURL;
+
+    // 🟩 Obtener el rol del usuario (desde user o rol en localStorage)
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userRol = (userData.rol || localStorage.getItem('rol') || '').toLowerCase();
+    const puedeEditarLimites = ['group_leader', 'gerente'].includes(userRol);
 
     useEffect(() => {
         if (movimiento) {
@@ -23,7 +28,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }
             const values = await form.validateFields();
             const { cantidad, punto_de_pedido, minimo, maximo } = values;
 
-            // 1. Registrar nuevo movimiento (ingreso pendiente)
+            // 1. Crear nuevo movimiento como ingreso pendiente
             const responseMovimiento = await fetch(`${VITE_APIURL}movimientos`, {
                 method: 'POST',
                 headers: {
@@ -41,22 +46,24 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }
             const dataMovimiento = await responseMovimiento.json();
             if (!responseMovimiento.ok) throw new Error(dataMovimiento.message || 'Error al registrar el movimiento');
 
-            // 2. Actualizar valores del inventario
-            const responseInventario = await fetch(`${VITE_APIURL}inventario/${movimiento.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    punto_de_pedido,
-                    minimo,
-                    maximo,
-                }),
-            });
+            // 2. Actualizar inventario (si tiene permiso)
+            if (puedeEditarLimites) {
+                const responseInventario = await fetch(`${VITE_APIURL}inventario/${movimiento.id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        punto_de_pedido,
+                        minimo,
+                        maximo,
+                    }),
+                });
 
-            const dataInventario = await responseInventario.json();
-            if (!responseInventario.ok) throw new Error(dataInventario.message || 'Error al actualizar el producto');
+                const dataInventario = await responseInventario.json();
+                if (!responseInventario.ok) throw new Error(dataInventario.message || 'Error al actualizar el producto');
+            }
 
             message.success('Cantidad y configuración actualizadas');
             if (onCantidadUpdated) onCantidadUpdated(movimiento.codigo, cantidad);
@@ -93,15 +100,20 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }
                 <Form.Item label="Nueva Cantidad (opcional)" name="cantidad">
                     <InputNumber min={0} className="w-full" />
                 </Form.Item>
-                <Form.Item label="Punto de Pedido" name="punto_de_pedido">
-                    <InputNumber min={0} className="w-full" />
-                </Form.Item>
-                <Form.Item label="Stock Mínimo" name="minimo">
-                    <InputNumber min={0} className="w-full" />
-                </Form.Item>
-                <Form.Item label="Stock Máximo" name="maximo">
-                    <InputNumber min={0} className="w-full" />
-                </Form.Item>
+
+                {puedeEditarLimites && (
+                    <>
+                        <Form.Item label="Punto de Pedido" name="punto_de_pedido">
+                            <InputNumber min={0} className="w-full" />
+                        </Form.Item>
+                        <Form.Item label="Stock Mínimo" name="minimo">
+                            <InputNumber min={0} className="w-full" />
+                        </Form.Item>
+                        <Form.Item label="Stock Máximo" name="maximo">
+                            <InputNumber min={0} className="w-full" />
+                        </Form.Item>
+                    </>
+                )}
             </Form>
         </Modal>
     );

@@ -11,6 +11,11 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
+    // 🔒 Rol del usuario desde localStorage (soporte flexible)
+    const userData = JSON.parse(localStorage.getItem('user') || '{}');
+    const userRol = (userData.rol || localStorage.getItem('rol') || '').toLowerCase();
+    const puedeVerLimites = ['group_leader', 'gerente'].includes(userRol);
+
     useEffect(() => {
         if (visible) {
             fetchProveedores();
@@ -48,7 +53,6 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
     const handleFinish = async (values) => {
         setLoading(true);
         try {
-            // 1. Crear el producto
             const response = await fetch(`${VITE_APIURL}inventario`, {
                 method: 'POST',
                 headers: {
@@ -61,7 +65,6 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Error al agregar el producto');
 
-            // 2. Crear el movimiento de ingreso solo si hay cantidad
             if (values.en_stock > 0) {
                 await fetch(`${VITE_APIURL}movimientos`, {
                     method: 'POST',
@@ -73,13 +76,12 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                         codigo_producto: values.codigo,
                         cantidad: values.en_stock,
                         motivo: 'ingreso',
-                        estado: 'aprobado', // o "pendiente" según tu lógica
+                        estado: 'aprobado',
                     }),
                 });
             }
 
             message.success('Producto y movimiento creados con éxito');
-
             if (onProductAdded) onProductAdded(data.producto);
             form.resetFields();
             onClose();
@@ -90,7 +92,6 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
             setLoading(false);
         }
     };
-
 
     return (
         <Modal
@@ -112,6 +113,7 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                     proveedor_id: null,
                     categoria_id: null,
                     en_stock: 0,
+                    punto_de_pedido: 0,
                     minimo: 0,
                     maximo: 0,
                 }}
@@ -144,7 +146,7 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                             option?.children?.toLowerCase().includes(input.toLowerCase())
                         }
                     >
-                        {Array.isArray(proveedores) && proveedores.map((proveedor) => (
+                        {proveedores.map((proveedor) => (
                             <Option key={proveedor.id} value={proveedor.id}>
                                 {proveedor.nombre}
                             </Option>
@@ -164,7 +166,7 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                             option?.children?.toLowerCase().includes(input.toLowerCase())
                         }
                     >
-                        {Array.isArray(categorias) && categorias.map((categoria) => (
+                        {categorias.map((categoria) => (
                             <Option key={categoria.id} value={categoria.id}>
                                 {categoria.nombre}
                             </Option>
@@ -177,43 +179,36 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
                     name="en_stock"
                     rules={[{ required: true, message: 'El stock inicial es obligatorio' }]}
                 >
-                    <InputNumber min={0} placeholder="Cantidad inicial en stock" className="w-full" />
+                    <InputNumber min={0} className="w-full" placeholder="Cantidad inicial en stock" />
                 </Form.Item>
 
-                <Form.Item
-                    label="Punto de Pedido"
-                    name="punto_de_pedido"
-                >
-                    <InputNumber min={0} className="w-full" />
-                </Form.Item>
+                {puedeVerLimites && (
+                    <>
+                        <Form.Item label="Punto de Pedido" name="punto_de_pedido">
+                            <InputNumber min={0} className="w-full" />
+                        </Form.Item>
 
-                <Form.Item
-                    label="Stock Mínimo"
-                    name="minimo"
-                >
-                    <InputNumber min={0} className="w-full" />
-                </Form.Item>
+                        <Form.Item label="Stock Mínimo" name="minimo">
+                            <InputNumber min={0} className="w-full" />
+                        </Form.Item>
 
-                <Form.Item
-                    label="Stock Máximo"
-                    name="maximo"
-                >
-                    <InputNumber min={0} className="w-full" />
-                </Form.Item>
+                        <Form.Item label="Stock Máximo" name="maximo">
+                            <InputNumber min={0} className="w-full" />
+                        </Form.Item>
+                    </>
+                )}
+
                 <Form.Item>
-                <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={loading}
-                    block
-                >
-                    Agregar Producto
-                </Button>
-            </Form.Item>
-
+                    <Button
+                        type="primary"
+                        htmlType="submit"
+                        loading={loading}
+                        block
+                    >
+                        Agregar Producto
+                    </Button>
+                </Form.Item>
             </Form>
-            
-
         </Modal>
     );
 };

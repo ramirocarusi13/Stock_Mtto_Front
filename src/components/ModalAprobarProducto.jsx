@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Button, message /*, InputNumber */ } from 'antd';
+import { Modal, Button, message } from 'antd';
 
-const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_APIURL }) => {
+const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => {
   const [selectedStatus, setSelectedStatus] = useState(null);
-  // const [minimo, setMinimo] = useState(null);
-  // const [maximo, setMaximo] = useState(null);
   const [loading, setLoading] = useState(false);
+  const VITE_APIURL = import.meta.env.VITE_APIURL;
 
   useEffect(() => {
-    // Limpieza o preparación si se requiere
-  }, [product]);
+    if (visible) {
+      setSelectedStatus(null);
+    }
+  }, [visible]);
 
   const handleConfirm = async () => {
     if (!selectedStatus) {
@@ -24,36 +25,33 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
       }
 
       const codigoProducto = product.codigo_producto || product.codigo;
-      let apiUrl = "";
-      let successMessage = "";
+      let apiUrl = '';
+      let method = 'PUT';
+      let bodyData = {};
+      let successMessage = '';
 
       if (selectedStatus === 'aprobado') {
-        if (product && product.estado === 'aprobado') {
-          // Producto ya aprobado: solo aprobamos el movimiento
+        if (product.estado === 'aprobado') {
           apiUrl = `${VITE_APIURL}movimientos/aprobar/${codigoProducto}`;
-          successMessage = "Movimiento aprobado con éxito";
+          successMessage = 'Movimiento aprobado con éxito';
         } else {
-          // Producto no aprobado: aprobamos como nuevo
           apiUrl = `${VITE_APIURL}inventario/aprobar/${codigoProducto}`;
-          successMessage = "Producto aprobado con éxito";
+          successMessage = 'Producto aprobado con éxito';
         }
+        bodyData = { estado: 'aprobado' };
       } else if (selectedStatus === 'rechazado') {
-        apiUrl = `${VITE_APIURL}inventario/rechazar/${codigoProducto}`;
-        successMessage = "Producto rechazado con éxito";
+        if (product.estado === 'aprobado') {
+          apiUrl = `${VITE_APIURL}movimientos/rechazar/${codigoProducto}`;
+          successMessage = 'Movimientos rechazados con éxito';
+        } else {
+          apiUrl = `${VITE_APIURL}inventario/rechazar/${codigoProducto}`;
+          successMessage = 'Producto rechazado con éxito';
+        }
+        bodyData = { estado: 'rechazado' };
       }
-
-      const bodyData = { estado: selectedStatus };
-
-      // 👇 Comentado: ya no se agregan mínimo y máximo en esta etapa
-      /*
-      if (selectedStatus === 'aprobado' && !(product && product.estado === 'aprobado')) {
-        bodyData.minimo = minimo;
-        bodyData.maximo = maximo;
-      }
-      */
 
       const response = await fetch(apiUrl, {
-        method: 'PUT',
+        method,
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json',
@@ -67,22 +65,15 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
       }
 
       message.success(successMessage);
-
-      if (onStatusChange) {
-        onStatusChange(codigoProducto, selectedStatus);
-      }
-
+      if (onStatusChange) onStatusChange(codigoProducto, selectedStatus);
       onClose();
     } catch (error) {
-      console.error("Error en aprobación/rechazo:", error.message);
+      console.error("Error en aprobación/rechazo:", error);
       message.error(error.message || 'Error al actualizar el estado');
     } finally {
       setLoading(false);
     }
   };
-
-  // 👇 Esta lógica queda desactivada, ya no se piden inputs de mínimo y máximo
-  // const showInputs = selectedStatus === 'aprobado' && !(product && product.estado === 'aprobado');
 
   return (
     <Modal
@@ -119,7 +110,6 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
             fontSize: '16px',
             padding: '10px 20px',
             width: '150px',
-            textAlign: 'center',
           }}
           onClick={() => setSelectedStatus('aprobado')}
         >
@@ -134,32 +124,12 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange, VITE_
             fontSize: '16px',
             padding: '10px 20px',
             width: '150px',
-            textAlign: 'center',
           }}
           onClick={() => setSelectedStatus('rechazado')}
         >
           ❌ Rechazado
         </Button>
       </div>
-
-      {/* 
-      {showInputs && (
-        <div style={{ marginTop: '20px', display: 'flex', gap: '20px', justifyContent: 'center' }}>
-          <InputNumber
-            placeholder="Mínimo"
-            value={minimo}
-            onChange={(value) => setMinimo(value)}
-            style={{ width: '150px', color: 'black'}}
-          />
-          <InputNumber
-            placeholder="Máximo"
-            value={maximo}
-            onChange={(value) => setMaximo(value)}
-            style={{ width: '150px' }}
-          />
-        </div>
-      )}
-      */}
     </Modal>
   );
 };
