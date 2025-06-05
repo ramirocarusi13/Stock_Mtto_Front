@@ -16,13 +16,13 @@ export default function ModalRegistrarSalida({
     visible,
     onClose,
     onRegistrar,
-    VITE_APIURL
+
 }) {
     const [form] = Form.useForm();
     const [productos, setProductos] = useState([]);
     const [loadingProductos, setLoadingProductos] = useState(false);
     const selectRef = useRef(null);
-
+    const VITE_APIURL = import.meta.env.VITE_APIURL;
     useEffect(() => {
         if (visible) {
             form.resetFields();
