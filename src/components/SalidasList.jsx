@@ -234,17 +234,17 @@ const SalidasList = () => {
 
                         if (!response.ok) {
                             const errorData = await response.json();
-                            throw new Error(errorData.error || 'Error al registrar la salida');
+                            throw new Error(errorData.error || 'Error al registrar salida');
                         }
 
                         message.success('Salida registrada con éxito');
-                        fetchSalidasFromServer(); // refresca tabla
+                        fetchSalidasFromServer(); // refrescar tabla
                     } catch (error) {
-                        console.error("Error al registrar la salida:", error);
-                        message.error('Error al registrar la salida: ' + error.message);
+                        message.error(error.message || 'Error al registrar la salida');
                     }
                 }}
             />
+
         </div>
     );
 };
