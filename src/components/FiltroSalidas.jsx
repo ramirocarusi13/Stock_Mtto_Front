@@ -1,37 +1,42 @@
 import React from 'react';
 import { Input, DatePicker, Space } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 
 const { RangePicker } = DatePicker;
 
 const FiltroSalidas = ({ searchText, setSearchText, selectedDates, setSelectedDates, onSearch }) => {
+    const handleInputChange = (e) => {
+        const value = e.target.value;
+        
 
-    // Manejar el cambio en la búsqueda y aplicar el filtro en tiempo real
-    const handleSearchChange = (e) => {
-        const value = e.target.value.toLowerCase();
-        setSearchText(value);
-        onSearch(value, selectedDates); // Aplica filtro en tiempo real
+
+
+        onSearch(value, selectedDates);
+
+
     };
 
-    // Manejar cambio de fechas y aplicar filtro en tiempo real
     const handleDateChange = (dates) => {
         setSelectedDates(dates);
-        onSearch(searchText, dates); // Aplica filtro en tiempo real
+        onSearch(searchText, dates);
     };
 
     return (
         <Space>
             <Input
-                placeholder="Buscar por código de producto..."
-                onChange={handleSearchChange}
+                placeholder="Buscar por código o nombre del producto"
+                prefix={<SearchOutlined />}
                 value={searchText}
-                className="w-60"
+                onPressEnter={handleInputChange}
+                onChange={(e)=> setSearchText(e.target.value)}
+                allowClear
+                style={{ width: 300 }}
             />
 
             <RangePicker
-                onChange={handleDateChange}
                 value={selectedDates}
-                className="w-72"
-                format="YYYY-MM-DD"
+                onChange={handleDateChange}
+                style={{ width: 260 }}
             />
         </Space>
     );

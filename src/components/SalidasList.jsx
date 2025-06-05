@@ -1,36 +1,53 @@
-import React, { useEffect, useState } from 'react';
-import { Table, Button, Tag, message, Input, DatePicker, Space, Modal, Form, Select, InputNumber } from 'antd';
-import { UserOutlined, CalendarOutlined, BarcodeOutlined, InboxOutlined, PlusOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import React, { useEffect, useState, useRef } from 'react';
+import {
+    Table,
+    Button,
+    Tag,
+    message,
+    Modal,
+    Form,
+    Select,
+    InputNumber,
+    Input,
+    Spin,
+} from 'antd';
+import {
+    UserOutlined,
+    CalendarOutlined,
+    PlusOutlined,
+    LoadingOutlined,
+    CheckCircleOutlined,
+} from '@ant-design/icons';
 import FiltroSalidas from './FiltroSalidas';
+import ModalRegistrarSalida from './ModalRegistrarSalida'; // importar componente
 
 
-const { RangePicker } = DatePicker;
+
+
+
 const { Option } = Select;
 
 const SalidasList = () => {
     const [salidas, setSalidas] = useState([]);
-    const [filteredSalidas, setFilteredSalidas] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchText, setSearchText] = useState('');
-    const [selectedDates, setSelectedDates] = useState(null);
     const [modalSalidaVisible, setModalSalidaVisible] = useState(false);
-    const [productosDisponibles, setProductosDisponibles] = useState([]);
     const [filteredProductos, setFilteredProductos] = useState([]);
+    const [productoSearchText, setProductoSearchText] = useState('');
+    const [productoSearchStatus, setProductoSearchStatus] = useState('idle');
     const [formSalida] = Form.useForm();
+    const selectRef = useRef(null);
 
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
     useEffect(() => {
-        fetchSalidas();
-        fetchProductos();
+        fetchSalidasFromServer(); // traer 100 salidas por defecto
     }, []);
 
-    // Obtener solo los movimientos con motivo "egreso"
-    const fetchSalidas = async () => {
+    const fetchSalidasFromServer = async (search = '') => {
         setLoading(true);
         try {
-            const response = await fetch(`${VITE_APIURL}movimientos?motivo=egreso`, {
+            const response = await fetch(`${VITE_APIURL}movimientos/egresos?search=${encodeURIComponent(search.trim())}`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
@@ -38,15 +55,7 @@ const SalidasList = () => {
             });
 
             const data = await response.json();
-            if (!data || !data.movimientos) {
-                throw new Error('Estructura de respuesta incorrecta');
-            }
-
-            // Filtrar solo los movimientos con motivo "egreso"
-            const salidasFiltradas = data.movimientos.filter(mov => mov.motivo === 'egreso');
-
-            setSalidas(salidasFiltradas);
-            setFilteredSalidas(salidasFiltradas); // Inicializar con todas las salidas
+            setSalidas(data.movimientos || []);
         } catch (error) {
             console.error("Error al obtener las salidas:", error);
             message.error('Error al obtener las salidas');
@@ -55,11 +64,20 @@ const SalidasList = () => {
         }
     };
 
-    // Obtener productos aprobados y calcular el stock desde movimientos
-    const fetchProductos = async () => {
-        setLoading(true);
+    const abrirModalSalida = () => {
+        setModalSalidaVisible(true);
+        formSalida.resetFields();
+        setProductoSearchText('');
+        setFilteredProductos([]);
+        setProductoSearchStatus('idle');
+    };
+
+    const buscarProductoPorCodigo = async () => {
+        if (!productoSearchText.trim()) return;
+        setProductoSearchStatus('loading');
+
         try {
-            const response = await fetch(`${VITE_APIURL}inventario`, {
+            const response = await fetch(`${VITE_APIURL}inventario?search=${encodeURIComponent(productoSearchText.trim())}`, {
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
@@ -67,102 +85,31 @@ const SalidasList = () => {
             });
 
             const data = await response.json();
-            if (!data || !data.data) {
-                throw new Error('Estructura de respuesta incorrecta');
-            }
+            const productosAprobados = data.data?.filter(p => p.estado === 'aprobado') || [];
+            setFilteredProductos(productosAprobados);
+            setProductoSearchStatus('success');
 
-            // Filtrar productos aprobados
-            const productosAprobados = data.data.filter(producto => producto.estado === 'aprobado');
-
-            // Obtener stock real desde movimientos
-            const productosConStock = await Promise.all(
-                productosAprobados.map(async (producto) => {
-                    const stockResponse = await fetch(`${VITE_APIURL}movimientos/${producto.codigo}`, {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                            'Content-Type': 'application/json',
-                        },
-                    });
-
-                    const stockData = await stockResponse.json();
-                    return {
-                        ...producto,
-                        stock_real: stockData.cantidad_total || 0, // Stock basado en movimientos
-                    };
-                })
-            );
-
-            setProductosDisponibles(productosConStock);
-            setFilteredProductos(productosConStock);
+            setTimeout(() => {
+                selectRef.current?.focus();
+                selectRef.current?.open();
+            }, 150);
         } catch (error) {
-            console.error("Error al obtener los productos:", error);
-            message.error('Error al obtener los productos');
-        } finally {
-            setLoading(false);
+            console.error("Error al buscar producto por código:", error);
+            message.error('Error al buscar producto');
+            setProductoSearchStatus('idle');
         }
-    };
-
-    // Filtro por nombre del producto
-    const handleSearchChange = (e) => {
-        const value = e.target.value.toLowerCase();
-        setSearchText(value);
-        applyFilters(value, selectedDates);
-    };
-
-    // Filtro por rango de fechas
-    const handleDateChange = (dates) => {
-        setSelectedDates(dates);
-        onSearch(searchText, dates); // Aplica filtro en tiempo real
-    };
-    
-
-    // Aplicar filtros combinados
-    const applyFilters = (searchValue, dateRange) => {
-        let filtered = salidas;
-    
-        // Filtrar por código de producto
-        if (searchValue) {
-            filtered = filtered.filter(salida =>
-                salida.codigo_producto.toLowerCase().includes(searchValue)
-            );
-        }
-    
-        // Filtrar por rango de fechas
-        if (dateRange && dateRange.length === 2) {
-            const [start, end] = dateRange;
-    
-            filtered = filtered.filter(salida => {
-                const salidaFecha = dayjs(salida.created_at); // Convertir en objeto dayjs()
-                return salidaFecha.isValid() && salidaFecha.isAfter(start.subtract(1, 'day')) && salidaFecha.isBefore(end.add(1, 'day'));
-            });
-        }
-    
-        setFilteredSalidas(filtered);
-    };
-    
-    
-
-
-    const abrirModalSalida = () => {
-        setModalSalidaVisible(true);
-        formSalida.resetFields();
     };
 
     const handleRegistrarSalida = async () => {
         try {
             const values = await formSalida.validateFields();
-            const producto = productosDisponibles.find(p => p.id === values.productoId);
+            const producto = filteredProductos.find(p => p.id === values.productoId);
 
             if (!producto) {
                 message.error('Seleccione un producto válido');
                 return;
             }
 
-            if (values.cantidadSalida > producto.stock_real) {
-                message.error('No se puede registrar más cantidad de la disponible');
-                return;
-            }
             const cantidad = Math.abs(values.cantidadSalida) * -1;
 
             const response = await fetch(`${VITE_APIURL}movimientos`, {
@@ -176,7 +123,7 @@ const SalidasList = () => {
                     cantidad: cantidad,
                     motivo: 'egreso',
                     estado: 'aprobado',
-                    observacion_salida: values.observacionSalida || '' // ✅ Se envía la observación
+                    observacion_salida: values.observacionSalida || ''
                 }),
             });
 
@@ -187,24 +134,11 @@ const SalidasList = () => {
 
             message.success('Salida registrada con éxito');
             setModalSalidaVisible(false);
-            fetchProductos();
-            fetchSalidas();
+            fetchSalidasFromServer();
         } catch (error) {
             console.error("Error al registrar la salida:", error);
             message.error('Error al registrar la salida: ' + error.message);
         }
-    };
-
-
-    // Manejo del filtro en tiempo real
-    const handleSearchProductoChange = (value) => {
-        setSearchText(value.toLowerCase());
-
-        const filtered = productosDisponibles.filter(producto =>
-            producto.codigo.toLowerCase().includes(value.toLowerCase())
-        );
-
-        setFilteredProductos(filtered);
     };
 
     return (
@@ -224,13 +158,9 @@ const SalidasList = () => {
                 <FiltroSalidas
                     searchText={searchText}
                     setSearchText={setSearchText}
-                    selectedDates={selectedDates}
-                    setSelectedDates={setSelectedDates}
-                    onSearch={applyFilters}
+                    onSearch={(text) => fetchSalidasFromServer(text)}
                 />
             </div>
-
-
 
             <Table
                 columns={[
@@ -248,41 +178,26 @@ const SalidasList = () => {
                         title: 'Código de Producto',
                         dataIndex: 'codigo_producto',
                         key: 'codigo_producto',
-                        render: (codigo) => (
-                            <Tag color="volcano">
-                                {codigo}
-                            </Tag>
-                        ),
+                        render: (codigo) => <Tag color="volcano">{codigo}</Tag>,
                     },
                     {
                         title: 'Descripción',
                         dataIndex: ['producto', 'descripcion'],
                         key: 'descripcion',
-                        render: (descripcion) => (
-                            <Tag color="purple">
-                                {descripcion || 'Sin descripción'}
-                            </Tag>
-                        ),
+                        render: (descripcion) => <Tag color="purple">{descripcion || 'Sin descripción'}</Tag>,
                     },
                     {
                         title: 'Cantidad',
                         dataIndex: 'cantidad',
                         key: 'cantidad',
-                        render: (cantidad) => (
-                            <Tag color="red">
-                                {cantidad}
-                            </Tag>
-                        ),
+                        render: (cantidad) => <Tag color="red">{cantidad}</Tag>,
                     },
                     {
                         title: 'Observación',
                         dataIndex: 'observacion_salida',
                         key: 'observacion_salida',
-                        render: (observacion) => (
-                            <Tag color="gold">{observacion || 'Sin observación'}</Tag>
-                        ),
+                        render: (observacion) => <Tag color="gold">{observacion || 'Sin observación'}</Tag>,
                     },
-
                     {
                         title: 'Fecha',
                         dataIndex: 'created_at',
@@ -292,9 +207,9 @@ const SalidasList = () => {
                                 {new Date(fecha).toLocaleDateString()}
                             </Tag>
                         ),
-                    }
+                    },
                 ]}
-                dataSource={filteredSalidas}
+                dataSource={salidas}
                 rowKey="id"
                 loading={loading}
                 bordered
@@ -302,63 +217,34 @@ const SalidasList = () => {
                 pagination={{ pageSize: 8 }}
             />
 
-            <Modal
-                title="Registrar Salida"
-                open={modalSalidaVisible}
-                onOk={handleRegistrarSalida}
-                onCancel={() => setModalSalidaVisible(false)}
-                okText="Registrar"
-                cancelText="Cancelar"
-                className="p-4"
-            >
-                <Form form={formSalida} layout="vertical">
-                    <Form.Item
-                        label="Seleccionar Producto"
-                        name="productoId"
-                        rules={[{ required: true, message: 'Seleccione un producto' }]}
-                    >
-                        <Select
-                            showSearch
-                            placeholder="Buscar producto por código..."
-                            optionFilterProp="children"
-                            filterOption={false}
-                            onSearch={handleSearchProductoChange}
-                        >
-                            {filteredProductos.map((producto) => (
-                                <Option key={producto.id} value={producto.id}>
-                                    {producto.codigo} - {producto.descripcion} (Stock: {producto.stock_real})
-                                </Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+            <ModalRegistrarSalida
+                visible={modalSalidaVisible}
+                onClose={() => setModalSalidaVisible(false)}
+                VITE_APIURL={VITE_APIURL}
+                onRegistrar={async (payload) => {
+                    try {
+                        const response = await fetch(`${VITE_APIURL}movimientos`, {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(payload),
+                        });
 
-                    <Form.Item
-                        label="Cantidad a Registrar"
-                        name="cantidadSalida"
-                        rules={[{ required: true, message: 'Ingrese la cantidad a registrar' }]}
-                    >
-                        <InputNumber min={1} className="w-full border border-gray-300 rounded-md p-2" />
-                    </Form.Item>
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.error || 'Error al registrar la salida');
+                        }
 
-                    <Form.Item
-                        label="Motivo de la Salida"
-                        name="motivoSalida"
-                        initialValue="egreso"
-                    >
-                        <Input disabled className="border border-gray-300 rounded-md p-2" />
-                    </Form.Item>
-
-                    {/* Nuevo Campo de Observación */}
-                    <Form.Item
-                        label="Observación de la Salida"
-                        name="observacionSalida"
-                    >
-                        <Input.TextArea placeholder="Ingrese una observación (opcional)" rows={3} />
-                    </Form.Item>
-
-                </Form>
-            </Modal>
-
+                        message.success('Salida registrada con éxito');
+                        fetchSalidasFromServer(); // refresca tabla
+                    } catch (error) {
+                        console.error("Error al registrar la salida:", error);
+                        message.error('Error al registrar la salida: ' + error.message);
+                    }
+                }}
+            />
         </div>
     );
 };

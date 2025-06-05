@@ -72,7 +72,7 @@ const MyMenu = () => {
                             { key: '7', label: <Link to="/pañol/salidas">Salidas</Link> },
                             { key: '8', label: <Link to="/pañol/pendientes">Pendientes</Link> },
                             { key: '11', label: <Link to="/pañol/criticos">Críticos</Link> },
-                            { key: '12', label: <Link to="/pañol/punto-de-pedido">Punto de Pedido</Link> },
+                            /* { key: '12', label: <Link to="/pañol/punto-de-pedido">Punto de Pedido</Link> }, */
 
                             role === 'gerente' && { key: '9', label: <Link to="/pañol/costos">Costos</Link> },
                             role === 'gerente' && { key: '10', label: <Link to="/pañol/reporte">Reporte</Link> },
