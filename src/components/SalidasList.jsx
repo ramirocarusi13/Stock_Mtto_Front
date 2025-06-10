@@ -72,7 +72,7 @@ const SalidasList = () => {
         setProductoSearchStatus('idle');
     };
 
-    const buscarProductoPorCodigo = async () => {
+  /*   const buscarProductoPorCodigo = async () => {
         if (!productoSearchText.trim()) return;
         setProductoSearchStatus('loading');
 
@@ -98,7 +98,7 @@ const SalidasList = () => {
             message.error('Error al buscar producto');
             setProductoSearchStatus('idle');
         }
-    };
+    }; */
 
     const handleRegistrarSalida = async () => {
         try {

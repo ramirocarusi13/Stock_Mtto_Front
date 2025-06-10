@@ -41,7 +41,7 @@ const PrestamosList = () => {
             // Filtrar productos aprobados
             const productosAprobados = data.data.filter(producto => producto.estado === 'aprobado');
 
-            // Obtener stock real desde movimientos
+            /* // Obtener stock real desde movimientos
             const productosConStock = await Promise.all(
                 productosAprobados.map(async (producto) => {
                     const stockResponse = await fetch(`${VITE_APIURL}movimientos/${producto.codigo}`, {
@@ -58,7 +58,7 @@ const PrestamosList = () => {
                         stock_real: stockData.cantidad_total || 0, // Stock basado en movimientos
                     };
                 })
-            );
+            ); */
 
             setProductosAprobados(productosConStock);
         } catch (error) {
