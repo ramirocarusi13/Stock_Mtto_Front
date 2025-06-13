@@ -65,21 +65,8 @@ const AgregarProductoModal = ({ visible, onClose, onProductAdded }) => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || 'Error al agregar el producto');
 
-            if (values.en_stock > 0) {
-                await fetch(`${VITE_APIURL}movimientos`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        codigo_producto: values.codigo,
-                        cantidad: values.en_stock,
-                        motivo: 'ingreso',
-                        estado: 'aprobado',
-                    }),
-                });
-            }
+            
+            
 
             message.success('Producto y movimiento creados con éxito');
             if (onProductAdded) onProductAdded(data.producto);
