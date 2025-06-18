@@ -42,7 +42,7 @@ const ProductList = () => {
 
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.message || 'Error al obtener los productos');
+                throw new Error(data.message);
             }
 
             const productosAprobados = data.data.filter(product => product.estado === 'aprobado');
@@ -69,7 +69,7 @@ const ProductList = () => {
 
         } catch (error) {
             console.error('Error al obtener los productos:', error);
-            message.error('Error al obtener los productos');
+           
         } finally {
             setLoading(false);
         }
