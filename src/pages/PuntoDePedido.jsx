@@ -33,7 +33,7 @@ const PuntoDePedido = () => {
             setProductos(data.data || []);
         } catch (error) {
             console.error('Error al obtener productos:', error);
-            message.error(`Error al cargar productos: ${error.message}`);
+           
         } finally {
             setLoading(false);
         }

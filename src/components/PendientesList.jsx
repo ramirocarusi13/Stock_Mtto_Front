@@ -20,9 +20,7 @@ const PendientesList = () => {
     const fetchMovimientosPendientes = async () => {
         setLoading(true);
         try {
-            // Obtener todos los movimientos con estado "pendiente"
             const movimientosResponse = await fetch(`${VITE_APIURL}movimientos?estado=pendiente&motivo=ingreso`, {
-                method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'Content-Type': 'application/json',
@@ -35,52 +33,42 @@ const PendientesList = () => {
 
             const movimientosData = await movimientosResponse.json();
 
-            // console.log(movimientosData)
+            const productosConDatos = await Promise.all(
+                movimientosData.movimientos.map(async (movimiento) => {
+                    try {
+                        const inventarioResponse = await fetch(`${VITE_APIURL}inventario/${movimiento.codigo_producto}`, {
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                'Content-Type': 'application/json',
+                            },
+                        });
 
-            /*     // Obtener información del producto desde inventario para cada movimiento
-                const productosConDatos = await Promise.all(
-                    movimientosData.movimientos.map(async (movimiento) => {
-                        try {
-                            const inventarioResponse = await fetch(`${VITE_APIURL}inventario/${movimiento.codigo_producto}`, {
-                                method: 'GET',
-                                headers: {
-                                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                                    'Content-Type': 'application/json',
-                                },
-                            });
- 
-                            if (!inventarioResponse.ok) {
-                                throw new Error(`Producto ${movimiento.codigo_producto} no encontrado en inventario`);
-                            }
- 
-                            const inventarioData = await inventarioResponse.json();
-                            const productoEnInventario = inventarioData.producto;
- 
-                            // Definir si el producto ya existe en inventarios y si está aprobado
-                            const esExistente = productoEnInventario && productoEnInventario.estado === 'aprobado';
- 
-                            return {
-                                ...productoEnInventario,
-                                cantidad_movimiento: movimiento.cantidad, // Cantidad del movimiento
-                                tipo_movimiento: movimiento.motivo, // Tipo de movimiento
-                                existente: esExistente,
-                                usuario: movimiento.usuario // Solo si el estado es aprobado
-                            };
-                        } catch (error) {
-                            console.warn(`Producto ${movimiento.codigo_producto} no está en inventario, marcándolo como nuevo`);
-                            return {
-                                codigo: movimiento.codigo_producto,
-                                descripcion: "Nuevo Producto",
-                                cantidad_movimiento: movimiento.cantidad,
-                                tipo_movimiento: movimiento.motivo,
-                                existente: false,
-                                usuario: movimiento.usuario // Producto no encontrado en inventario
-                            };
+                        if (!inventarioResponse.ok) {
+                            throw new Error('Producto no encontrado');
                         }
-                    })
-                ); */
 
-            setProductosPendientes(movimientosData?.movimientos);
+                        const inventarioData = await inventarioResponse.json();
+
+                        // Verificar claramente si el producto existe y está aprobado
+                        const esExistente = inventarioData?.producto && inventarioData.producto.estado === 'aprobado';
+
+                        return {
+                            ...movimiento,
+                            producto: inventarioData.producto,
+                            existente: esExistente
+                        };
+                    } catch (error) {
+                        // Si el producto no existe, se maneja aquí claramente
+                        return {
+                            ...movimiento,
+                            producto: { descripcion: "Nuevo Producto" },
+                            existente: false
+                        };
+                    }
+                })
+            );
+
+            setProductosPendientes(productosConDatos);
         } catch (error) {
             console.error('Error al obtener los productos pendientes:', error);
             message.error('Error al obtener los productos pendientes');
@@ -88,6 +76,7 @@ const PendientesList = () => {
             setLoading(false);
         }
     };
+
 
     useEffect(() => {
         fetchMovimientosPendientes();
@@ -134,7 +123,7 @@ const PendientesList = () => {
         },
         {
             title: 'Estado del Producto',
-            dataIndex: 'estado',
+            dataIndex: 'existente',
             key: 'estado',
             render: (esExistente) => (
                 <div>
@@ -149,6 +138,7 @@ const PendientesList = () => {
                 </div>
             ),
         },
+
         {
             title: 'Usuario creador',
             dataIndex: 'usuario_nombre',
