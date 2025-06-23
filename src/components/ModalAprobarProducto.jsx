@@ -65,6 +65,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
       }
 
       message.success(successMessage);
+      
       if (onStatusChange) onStatusChange(codigoProducto, selectedStatus);
       onClose();
     } catch (error) {
