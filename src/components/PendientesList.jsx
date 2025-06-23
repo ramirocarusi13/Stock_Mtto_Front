@@ -35,7 +35,7 @@ const PendientesList = () => {
 
             const movimientosData = await movimientosResponse.json();
 
-            console.log(movimientosData)
+            // console.log(movimientosData)
 
             /*     // Obtener información del producto desde inventario para cada movimiento
                 const productosConDatos = await Promise.all(
