@@ -32,7 +32,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
 
       if (selectedStatus === 'aprobado') {
         if (product.estado === 'aprobado') {
-          apiUrl = `${VITE_APIURL}movimientos/aprobar/${product.id}`;
+          apiUrl = `${VITE_APIURL}movimientos/aprobar/${codigoProducto}`;
           successMessage = 'Movimiento aprobado con éxito';
         } else {
           apiUrl = `${VITE_APIURL}inventario/aprobar/${codigoProducto}`;
@@ -41,7 +41,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
         bodyData = { estado: 'aprobado' };
       } else if (selectedStatus === 'rechazado') {
         if (product.estado === 'aprobado') {
-          apiUrl = `${VITE_APIURL}movimientos/rechazar/${product.id}`;
+          apiUrl = `${VITE_APIURL}movimientos/rechazar/${codigoProducto}`;
           successMessage = 'Movimientos rechazados con éxito';
         } else {
           apiUrl = `${VITE_APIURL}inventario/rechazar/${codigoProducto}`;
