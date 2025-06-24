@@ -20,34 +20,22 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
 
     setLoading(true);
     try {
-      if (!product || (!product.codigo && !product.codigo_producto)) {
-        throw new Error("Código de producto no encontrado");
+      if (!product || !product.id) {
+        throw new Error("ID de movimiento no encontrado");
       }
 
-      const codigoProducto = product.codigo_producto || product.codigo;
+      const movimientoId = product.id;
       let apiUrl = '';
       let method = 'PUT';
       let bodyData = {};
       let successMessage = '';
 
       if (selectedStatus === 'aprobado') {
-        if (product.estado === 'aprobado') {
-          apiUrl = `${VITE_APIURL}movimientos/aprobar/${codigoProducto}`;
-          successMessage = 'Movimiento aprobado con éxito';
-        } else {
-          apiUrl = `${VITE_APIURL}inventario/aprobar/${codigoProducto}`;
-          successMessage = 'Producto aprobado con éxito';
-        }
-        bodyData = { estado: 'aprobado' };
+        apiUrl = `${VITE_APIURL}movimientos/aprobar-id/${movimientoId}`;
+        successMessage = 'Movimiento aprobado con éxito';
       } else if (selectedStatus === 'rechazado') {
-        if (product.estado === 'aprobado') {
-          apiUrl = `${VITE_APIURL}movimientos/rechazar/${codigoProducto}`;
-          successMessage = 'Movimientos rechazados con éxito';
-        } else {
-          apiUrl = `${VITE_APIURL}inventario/rechazar/${codigoProducto}`;
-          successMessage = 'Producto rechazado con éxito';
-        }
-        bodyData = { estado: 'rechazado' };
+        apiUrl = `${VITE_APIURL}movimientos/rechazar-id/${movimientoId}`;
+        successMessage = 'Movimiento rechazado con éxito';
       }
 
       const response = await fetch(apiUrl, {
@@ -66,7 +54,7 @@ const ModalAprobarProducto = ({ visible, onClose, product, onStatusChange }) => 
 
       message.success(successMessage);
 
-      if (onStatusChange) onStatusChange(codigoProducto, selectedStatus);
+      if (onStatusChange) onStatusChange(product.codigo_producto || product.codigo, selectedStatus);
       onClose();
     } catch (error) {
       console.error("Error en aprobación/rechazo:", error);

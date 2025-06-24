@@ -6,18 +6,13 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }
     const [form] = Form.useForm();
     const VITE_APIURL = import.meta.env.VITE_APIURL;
 
-    // 🟩 Obtener el rol del usuario (desde user o rol en localStorage)
-    const userData = JSON.parse(localStorage.getItem('user') || '{}');
-    const userRol = (userData.rol || localStorage.getItem('rol') || '').toLowerCase();
-    const puedeEditarLimites = ['group_leader', 'gerente'].includes(userRol);
-
     useEffect(() => {
         if (movimiento) {
             form.setFieldsValue({
-                cantidad: movimiento.stock_real ?? 1,
-                punto_de_pedido: movimiento.punto_de_pedido ?? 0,
-                minimo: movimiento.minimo ?? 0,
-                maximo: movimiento.maximo ?? 0,
+                cantidad: movimiento.cantidad || 0,
+                punto_de_pedido: movimiento.punto_de_pedido || 0,
+                minimo: movimiento.minimo || 0,
+                maximo: movimiento.maximo || 0,
             });
         }
     }, [movimiento, form]);
@@ -28,7 +23,7 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }
             const values = await form.validateFields();
             const { cantidad, punto_de_pedido, minimo, maximo } = values;
 
-            // 1. Crear nuevo movimiento como ingreso pendiente
+            // Registrar nuevo movimiento (ingreso pendiente)
             const responseMovimiento = await fetch(`${VITE_APIURL}movimientos`, {
                 method: 'POST',
                 headers: {
@@ -37,32 +32,30 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }
                 },
                 body: JSON.stringify({
                     codigo_producto: movimiento?.codigo_producto || movimiento?.codigo,
-                    cantidad: cantidad,
+                    cantidad,
                     motivo: 'ingreso',
                     estado: 'pendiente',
                 }),
             });
 
             const dataMovimiento = await responseMovimiento.json();
-            if (!responseMovimiento.ok) throw new Error(dataMovimiento.message || 'Error al registrar el movimiento');
+            if (!responseMovimiento.ok) {
+                throw new Error(dataMovimiento.message || 'Error al registrar el movimiento');
+            }
 
-            // 2. Actualizar inventario (si tiene permiso)
-            if (puedeEditarLimites) {
-                const responseInventario = await fetch(`${VITE_APIURL}inventario/${movimiento.id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        punto_de_pedido,
-                        minimo,
-                        maximo,
-                    }),
-                });
+            // Actualizar valores del inventario
+            const responseInventario = await fetch(`${VITE_APIURL}inventario/${movimiento.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ punto_de_pedido, minimo, maximo }),
+            });
 
-                const dataInventario = await responseInventario.json();
-                if (!responseInventario.ok) throw new Error(dataInventario.message || 'Error al actualizar el producto');
+            const dataInventario = await responseInventario.json();
+            if (!responseInventario.ok) {
+                throw new Error(dataInventario.message || 'Error al actualizar el producto');
             }
 
             message.success('Cantidad y configuración actualizadas');
@@ -90,30 +83,24 @@ const EditarcantidadModal = ({ visible, onClose, movimiento, onCantidadUpdated }
                     type="primary"
                     onClick={handleSubmit}
                     loading={loading}
-                    style={{ backgroundColor: '#1677ff', borderColor: '#1677ff' }}
                 >
                     Guardar
-                </Button>,
+                </Button>
             ]}
         >
             <Form form={form} layout="vertical">
-                <Form.Item label="Nueva Cantidad (opcional)" name="cantidad">
+                <Form.Item label="Nueva Cantidad" name="cantidad">
                     <InputNumber min={0} className="w-full" />
                 </Form.Item>
-
-                {puedeEditarLimites && (
-                    <>
-                        <Form.Item label="Punto de Pedido" name="punto_de_pedido">
-                            <InputNumber min={0} className="w-full" />
-                        </Form.Item>
-                        <Form.Item label="Stock Mínimo" name="minimo">
-                            <InputNumber min={0} className="w-full" />
-                        </Form.Item>
-                        <Form.Item label="Stock Máximo" name="maximo">
-                            <InputNumber min={0} className="w-full" />
-                        </Form.Item>
-                    </>
-                )}
+                <Form.Item label="Punto de Pedido" name="punto_de_pedido">
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
+                <Form.Item label="Stock Mínimo" name="minimo">
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
+                <Form.Item label="Stock Máximo" name="maximo">
+                    <InputNumber min={0} className="w-full" />
+                </Form.Item>
             </Form>
         </Modal>
     );
