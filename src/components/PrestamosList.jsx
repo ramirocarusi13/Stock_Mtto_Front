@@ -62,7 +62,7 @@ const PrestamosList = () => {
 
             setProductosAprobados(productosConStock);
         } catch (error) {
-            message.error('Error al obtener los productos');
+            
         } finally {
             setLoading(false);
         }

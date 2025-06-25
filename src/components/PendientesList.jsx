@@ -71,7 +71,7 @@ const PendientesList = () => {
             setProductosPendientes(productosConDatos);
         } catch (error) {
             console.error('Error al obtener los productos pendientes:', error);
-            message.error('Error al obtener los productos pendientes');
+            
         } finally {
             setLoading(false);
         }

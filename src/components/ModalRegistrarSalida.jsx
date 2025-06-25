@@ -43,7 +43,7 @@ export default function ModalRegistrarSalida({
             setProductos(data.data || []);
         } catch (error) {
             console.error('Error al obtener productos:', error);
-            message.error('No se pudieron cargar los productos');
+            
         } finally {
             setLoadingProductos(false);
         }

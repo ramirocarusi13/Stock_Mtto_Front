@@ -25,7 +25,7 @@ const Reporte = () => {
                 setCategorias(data);
             } catch (error) {
                 console.error('Error al obtener categorías:', error);
-                message.error('No se pudieron cargar las categorías');
+                
             }
         };
         fetchCategorias();

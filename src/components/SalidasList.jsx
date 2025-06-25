@@ -58,7 +58,7 @@ const SalidasList = () => {
             setSalidas(data.movimientos || []);
         } catch (error) {
             console.error("Error al obtener las salidas:", error);
-            message.error('Error al obtener las salidas');
+           
         } finally {
             setLoading(false);
         }
