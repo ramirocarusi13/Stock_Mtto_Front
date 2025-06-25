@@ -68,7 +68,7 @@ const ProductList = () => {
             setFilteredProductos(productosAprobados);
 
         } catch (error) {
-            console.error('Error al obtener los productos:', error);
+            
            
         } finally {
             setLoading(false);

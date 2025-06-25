@@ -85,7 +85,7 @@ const PrestamosList = () => {
 
             setPrestamos(data.data);
         } catch (error) {
-            message.error('Error al obtener los préstamos');
+            
         } finally {
             setLoading(false);
         }
