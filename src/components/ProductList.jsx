@@ -187,17 +187,18 @@ const ProductList = () => {
                                     );
                                 },
                             },
-                            {
-                                title: 'Punto de Pedido',
-                                dataIndex: 'punto_de_pedido',
-                                key: 'punto_de_pedido',
-                                render: (value) => <Tag color="orange">{value ?? 0}</Tag>,
-                            },
+                            
                             {
                                 title: 'Mínimo',
                                 dataIndex: 'minimo',
                                 key: 'minimo',
                                 render: (value) => <Tag color="red">{value ?? 0}</Tag>,
+                            },
+                            {
+                                title: 'Punto de Pedido',
+                                dataIndex: 'punto_de_pedido',
+                                key: 'punto_de_pedido',
+                                render: (value) => <Tag color="orange">{value ?? 0}</Tag>,
                             },
                             {
                                 title: 'Máximo',
